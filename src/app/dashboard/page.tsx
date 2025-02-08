@@ -4,9 +4,11 @@ import { useAuth } from "@/context/AuthContext";
 import WaveBackground from "@/components/WaveBackground";
 import Link from "next/link";
 import TrackHistory from "@/components/TrackHistory";
+import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
   const { user, userData } = useAuth();
+  const router = useRouter();
   const username =
     userData?.displayName || user?.email?.split("@")[0] || "Producer";
 
@@ -46,6 +48,34 @@ export default function Dashboard() {
               <h3 className="text-gray-400 mb-2">NFTs Earned</h3>
               <p className="text-4xl font-bold text-primary-light">0</p>
             </div>
+
+            {/* NFT Gallery Link */}
+            <button
+              onClick={() => router.push("/nfts")}
+              className="bg-background-light p-6 rounded-2xl border border-primary/20 hover:border-primary/40 transition-all cursor-pointer group w-full text-left"
+            >
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-gray-400 mb-2">NFT Gallery</h3>
+                  <p className="text-4xl font-bold text-primary-light">
+                    View →
+                  </p>
+                </div>
+                <svg
+                  className="w-6 h-6 text-primary-light transform group-hover:translate-x-1 transition-transform"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
+                  />
+                </svg>
+              </div>
+            </button>
           </div>
         </div>
 

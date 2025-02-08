@@ -1,35 +1,62 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
-contract MusicNFT is ERC721, ERC721URIStorage, Ownable {
+contract MusicNFT is ERC721URIStorage {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
-    constructor() ERC721("MusicNFT", "MNFT") {}
+    // Mapping from owner to list of owned token IDs
+    mapping(address => uint256[]) private _ownedTokens;
+
+    constructor() ERC721("AI Rockverse Music", "AIRM") {}
 
     function mintNFT(string memory tokenURI) public returns (uint256) {
         _tokenIds.increment();
         uint256 newTokenId = _tokenIds.current();
+        
         _safeMint(msg.sender, newTokenId);
         _setTokenURI(newTokenId, tokenURI);
+        
+        // Add token to owner's list
+        _ownedTokens[msg.sender].push(newTokenId);
+        
         return newTokenId;
     }
 
-    // Override required functions
-    function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
-        super._burn(tokenId);
+    // Get all tokens owned by an address
+    function tokensOfOwner(address owner) public view returns (uint256[] memory) {
+        return _ownedTokens[owner];
     }
 
-    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
-        return super.tokenURI(tokenId);
-    }
-
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage) returns (bool) {
-        return super.supportsInterface(interfaceId);
+    // Override transfer functions to update _ownedTokens
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId,
+        uint256 batchSize
+    ) internal override {
+        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+        
+        // Remove from previous owner
+        if (from != address(0)) {
+            uint256[] storage fromTokens = _ownedTokens[from];
+            for (uint256 i = 0; i < fromTokens.length; i++) {
+                if (fromTokens[i] == tokenId) {
+                    // Move the last element to this position and pop
+                    fromTokens[i] = fromTokens[fromTokens.length - 1];
+                    fromTokens.pop();
+                    break;
+                }
+            }
+        }
+        
+        // Add to new owner
+        if (to != address(0)) {
+            _ownedTokens[to].push(tokenId);
+        }
     }
 }

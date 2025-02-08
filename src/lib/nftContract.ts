@@ -30,3 +30,57 @@ export async function mintNFT(metadataURI: string) {
     throw error;
   }
 }
+
+export async function getUserNFTs() {
+  try {
+    if (!window.ethereum) {
+      throw new Error("MetaMask is not installed");
+    }
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const userAddress = await signer.getAddress();
+
+    const contract = new ethers.Contract(
+      CONTRACT_ADDRESS!,
+      contractABI,
+      signer
+    );
+
+    // Get token IDs owned by user
+    const tokenIds = await contract.tokensOfOwner(userAddress);
+
+    if (!tokenIds || tokenIds.length === 0) {
+      return []; // Return empty array if no tokens found
+    }
+
+    // Get metadata for each token
+    const nfts = await Promise.all(
+      tokenIds.map(async (tokenId: bigint) => {
+        try {
+          const uri = await contract.tokenURI(tokenId);
+          // Remove ipfs:// prefix if present
+          const cleanUri = uri.replace("ipfs://", "https://ipfs.io/ipfs/");
+          const metadata = await fetch(cleanUri).then((r) => r.json());
+          return {
+            tokenId: tokenId.toString(),
+            ...metadata,
+            audioUrl: metadata.animation_url?.replace(
+              "ipfs://",
+              "https://ipfs.io/ipfs/"
+            ),
+          };
+        } catch (error) {
+          console.error(`Error fetching metadata for token ${tokenId}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Filter out any null results from failed metadata fetches
+    return nfts.filter((nft) => nft !== null);
+  } catch (error) {
+    console.error("Error fetching NFTs:", error);
+    throw error;
+  }
+}

@@ -5,6 +5,12 @@ import UploadForm from "@/components/UploadForm";
 import { useAuth } from "@/context/AuthContext";
 import UsernameForm from "@/components/UsernameForm";
 import WaveBackground from "@/components/WaveBackground";
+import {
+  DrummerStickFigure,
+  AIAnalystStickFigure,
+  FeedbackStickFigure,
+  LevelUpStickFigure,
+} from "@/components/illustrations/StickFigures";
 
 export default function Home() {
   const { user, loading, userData, signInWithGoogle } = useAuth();
@@ -94,31 +100,36 @@ export default function Home() {
                   step: "1",
                   title: "Upload Your Beat",
                   description: "Share your track and select your genre",
+                  Icon: DrummerStickFigure,
                 },
                 {
                   step: "2",
                   title: "AI Analysis",
                   description: "Our AI breaks down your beat's key features",
+                  Icon: AIAnalystStickFigure,
                 },
                 {
                   step: "3",
                   title: "Get Feedback",
                   description: "Receive personalized improvement suggestions",
+                  Icon: FeedbackStickFigure,
                 },
                 {
                   step: "4",
                   title: "Level Up",
                   description: "Track progress with NFT-backed achievements",
+                  Icon: LevelUpStickFigure,
                 },
               ].map((item, index) => (
                 <div
                   key={index}
-                  className="relative p-6 rounded-lg bg-background border border-primary/20"
+                  className="relative p-6 rounded-lg bg-background border border-primary/20 hover:border-primary/40 transition-all duration-300"
                 >
                   <div className="absolute -top-4 left-4 w-8 h-8 rounded-full bg-primary flex items-center justify-center font-bold">
                     {item.step}
                   </div>
-                  <h3 className="text-xl font-bold text-primary-light mt-2 mb-4">
+                  <item.Icon />
+                  <h3 className="text-xl font-bold text-primary-light mb-4">
                     {item.title}
                   </h3>
                   <p className="text-gray-400">{item.description}</p>
