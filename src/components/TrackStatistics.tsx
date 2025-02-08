@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Pie, Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -34,72 +34,67 @@ export default function TrackStatistics({ tracks }: TrackStatisticsProps) {
     "genres" | "moods" | "bpmRanges" | "energyRanges"
   >("genres");
 
-  const metricLabels = {
-    genres: "Genres",
-    moods: "Moods",
-    bpmRanges: "BPM Distribution",
-    energyRanges: "Energy Levels",
-  };
-
-  // Debug log
-  console.error("Tracks received:", tracks);
-
-  // Process track data for statistics
-  const processData = () => {
-    if (!tracks || tracks.length === 0) {
-      return {
-        genres: { "No Data": 1 },
-        moods: { "No Data": 1 },
-        bpmRanges: { "No Data": 1 },
-        energyRanges: { "No Data": 1 },
-      };
-    }
-
+  // Process track data for statistics using useMemo
+  const processedData = useMemo(() => {
     const genres: { [key: string]: number } = {};
     const moods: { [key: string]: number } = {};
     const bpmRanges: { [key: string]: number } = {};
     const energyRanges: { [key: string]: number } = {};
 
     tracks.forEach((track) => {
-      // Genre count
-      const genre = track.aiFeedback?.genre || "Unknown";
+      // Process genres
+      const genre = track.aiFeedback?.genre || "unknown";
       genres[genre] = (genres[genre] || 0) + 1;
 
-      // Mood count
-      const mood = track.aiFeedback?.mood || "Unknown";
+      // Process moods
+      const mood = track.aiFeedback?.mood || "unknown";
       moods[mood] = (moods[mood] || 0) + 1;
 
-      // BPM ranges
+      // Process BPM ranges
       const bpm = track.analysis?.bpm || 0;
-      const bpmRange = getBpmRange(bpm);
+      const bpmRange = bpm > 150 ? ">150 BPM" : "<150 BPM";
       bpmRanges[bpmRange] = (bpmRanges[bpmRange] || 0) + 1;
 
-      // Energy ranges
-      const energy = track.analysis?.averageEnergy || 0;
-      const energyRange = getEnergyRange(energy);
-      energyRanges[energyRange] = (energyRanges[energyRange] || 0) + 1;
+      // Process energy levels
+      const energy = track.analysis?.energy || "Medium";
+      energyRanges[energy] = (energyRanges[energy] || 0) + 1;
     });
 
     return { genres, moods, bpmRanges, energyRanges };
+  }, [tracks]); // Only recompute when tracks change
+
+  const getDataForMetric = (metric: string) => {
+    switch (metric) {
+      case "genres":
+        return processedData.genres;
+      case "moods":
+        return processedData.moods;
+      case "bpmRanges":
+        return processedData.bpmRanges;
+      case "energyRanges":
+        return processedData.energyRanges;
+      default:
+        return {};
+    }
   };
 
-  const getBpmRange = (bpm: number): string => {
-    if (bpm < 90) return "<90 BPM";
-    if (bpm < 110) return "90-110 BPM";
-    if (bpm < 130) return "110-130 BPM";
-    if (bpm < 150) return "130-150 BPM";
-    return ">150 BPM";
-  };
-
-  const getEnergyRange = (energy: number): string => {
-    if (energy < 20) return "Very Low";
-    if (energy < 40) return "Low";
-    if (energy < 60) return "Medium";
-    if (energy < 80) return "High";
-    return "Very High";
-  };
-
-  const { genres, moods, bpmRanges, energyRanges } = processData();
+  const createChartData = (data: any, label: string) => ({
+    labels: Object.keys(data),
+    datasets: [
+      {
+        label,
+        data: Object.values(data),
+        backgroundColor: [
+          "rgba(147, 51, 234, 0.8)",
+          "rgba(168, 85, 247, 0.8)",
+          "rgba(192, 132, 252, 0.8)",
+          "rgba(216, 180, 254, 0.8)",
+          "rgba(233, 213, 255, 0.8)",
+        ],
+        borderWidth: 1,
+      },
+    ],
+  });
 
   const chartOptions = {
     responsive: true,
@@ -108,56 +103,11 @@ export default function TrackStatistics({ tracks }: TrackStatisticsProps) {
       legend: {
         position: "right" as const,
         labels: {
-          color: "#9CA3AF",
-          font: {
-            size: 12,
-          },
+          color: "rgb(229, 231, 235)",
         },
       },
     },
   };
-
-  const getDataForMetric = (metric: string) => {
-    switch (metric) {
-      case "genres":
-        return genres;
-      case "moods":
-        return moods;
-      case "bpmRanges":
-        return bpmRanges;
-      case "energyRanges":
-        return energyRanges;
-      default:
-        return genres;
-    }
-  };
-
-  const createChartData = (data: { [key: string]: number }, label: string) => ({
-    labels: Object.keys(data),
-    datasets: [
-      {
-        label,
-        data: Object.values(data),
-        backgroundColor: [
-          "rgba(139, 92, 246, 0.8)", // primary
-          "rgba(167, 139, 250, 0.8)", // primary-light
-          "rgba(124, 58, 237, 0.8)", // primary-dark
-          "rgba(139, 92, 246, 0.6)",
-          "rgba(167, 139, 250, 0.6)",
-          "rgba(124, 58, 237, 0.6)",
-        ],
-        borderColor: [
-          "rgba(139, 92, 246, 1)",
-          "rgba(167, 139, 250, 1)",
-          "rgba(124, 58, 237, 1)",
-          "rgba(139, 92, 246, 1)",
-          "rgba(167, 139, 250, 1)",
-          "rgba(124, 58, 237, 1)",
-        ],
-        borderWidth: 1,
-      },
-    ],
-  });
 
   return (
     <div className="bg-background-light/50 border border-primary/20 rounded-xl p-4 lg:p-6 lg:sticky lg:top-8">
@@ -167,11 +117,10 @@ export default function TrackStatistics({ tracks }: TrackStatisticsProps) {
           onChange={(e) => setSelectedMetric(e.target.value as any)}
           className="w-full sm:w-auto bg-background-light border border-primary/20 rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:border-primary/40"
         >
-          {Object.entries(metricLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
+          <option value="genres">Genres</option>
+          <option value="moods">Moods</option>
+          <option value="bpmRanges">BPM Distribution</option>
+          <option value="energyRanges">Energy Levels</option>
         </select>
         <div className="flex gap-2">
           <button
@@ -202,35 +151,17 @@ export default function TrackStatistics({ tracks }: TrackStatisticsProps) {
           <Pie
             data={createChartData(
               getDataForMetric(selectedMetric),
-              metricLabels[selectedMetric]
+              selectedMetric
             )}
-            options={{
-              ...chartOptions,
-              plugins: {
-                ...chartOptions.plugins,
-                legend: {
-                  ...chartOptions.plugins.legend,
-                  position: window.innerWidth < 640 ? "bottom" : "right",
-                },
-              },
-            }}
+            options={chartOptions}
           />
         ) : (
           <Bar
             data={createChartData(
               getDataForMetric(selectedMetric),
-              metricLabels[selectedMetric]
+              selectedMetric
             )}
-            options={{
-              ...chartOptions,
-              plugins: {
-                ...chartOptions.plugins,
-                legend: {
-                  ...chartOptions.plugins.legend,
-                  position: window.innerWidth < 640 ? "bottom" : "right",
-                },
-              },
-            }}
+            options={chartOptions}
           />
         )}
       </div>

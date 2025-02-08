@@ -4,17 +4,20 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 contract MusicNFT is ERC721, ERC721URIStorage, Ownable {
-    uint256 private _nextTokenId;
+    using Counters for Counters.Counter;
+    Counters.Counter private _tokenIds;
 
     constructor() ERC721("MusicNFT", "MNFT") {}
 
     function mintNFT(string memory tokenURI) public returns (uint256) {
-        uint256 tokenId = _nextTokenId++;
-        _safeMint(msg.sender, tokenId);
-        _setTokenURI(tokenId, tokenURI);
-        return tokenId;
+        _tokenIds.increment();
+        uint256 newTokenId = _tokenIds.current();
+        _safeMint(msg.sender, newTokenId);
+        _setTokenURI(newTokenId, tokenURI);
+        return newTokenId;
     }
 
     // Override required functions
