@@ -1,41 +1,47 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getUserNFTs } from "@/lib/nftContract";
+import { getUserNFTs, formatIPFSUrl } from "@/lib/nftContract";
 import NFTSaleHistory from "./NFTSaleHistory";
 import { ethers } from "ethers";
 import { contractABI } from "@/lib/contractABI";
+import { useAuth } from "@/context/AuthContext";
 
 interface NFT {
-  tokenId: string;
-  name: string;
-  description: string;
-  audioUrl?: string;
-  properties?: {
-    genre?: string;
-    bpm?: number;
-    duration?: number;
+  tokenId: number;
+  owner: string;
+  tokenURI: string;
+  metadata: {
+    name: string;
+    description: string;
+    image: string;
+    audio: string;
   };
+  price: bigint;
+  isListed: boolean;
 }
 
 export default function NFTGallery() {
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [listingPrice, setListingPrice] = useState<string>("");
+  const { user } = useAuth();
 
   useEffect(() => {
-    loadNFTs();
-  }, []);
+    if (user) {
+      loadNFTs();
+    }
+  }, [user]);
 
   const loadNFTs = async () => {
     try {
       setLoading(true);
+      setError(null);
       const userNfts = await getUserNFTs();
       setNfts(userNfts);
     } catch (err) {
+      console.error("Error loading NFTs:", err);
       setError("Failed to load NFTs");
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -83,62 +89,46 @@ export default function NFTGallery() {
     }
   };
 
-  if (loading) return <div>Loading your NFTs...</div>;
-  if (error) return <div className="text-red-500">{error}</div>;
-  if (nfts.length === 0) return <div>No NFTs found</div>;
+  if (loading) {
+    return <div className="text-center py-8">Loading your NFTs...</div>;
+  }
+
+  if (error) {
+    return <div className="text-red-500 text-center py-8">{error}</div>;
+  }
+
+  if (nfts.length === 0) {
+    return <div className="text-center py-8">No NFTs found</div>;
+  }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4 mt-24">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
       {nfts.map((nft) => (
         <div
           key={nft.tokenId}
-          className="bg-background-light rounded-lg p-4 border border-primary/20 hover:border-primary/40 transition-all"
+          className="bg-background-light rounded-lg p-4 shadow-lg"
         >
-          <h3 className="text-xl font-bold text-primary mb-2">
-            {nft.name || "Untitled"}
-          </h3>
-          <p className="text-gray-400 mb-4">
-            {nft.description || "No description"}
-          </p>
-
-          {nft.audioUrl && (
-            <audio controls className="w-full mb-4" src={nft.audioUrl}>
-              Your browser does not support the audio element.
-            </audio>
-          )}
-
-          <div className="text-sm text-gray-500">
-            {nft.properties && (
-              <>
-                {nft.properties.genre && <p>Genre: {nft.properties.genre}</p>}
-                {nft.properties.bpm && <p>BPM: {nft.properties.bpm}</p>}
-                {nft.properties.duration && (
-                  <p>Duration: {nft.properties.duration}s</p>
-                )}
-              </>
-            )}
-            <p className="text-xs mt-2">Token ID: {nft.tokenId}</p>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Price in ETH"
-              className="w-full p-2 rounded bg-background border border-primary/20 text-white"
-              value={listingPrice}
-              onChange={(e) => setListingPrice(e.target.value)}
+          <div className="aspect-square rounded-lg overflow-hidden mb-4">
+            <img
+              src={formatIPFSUrl(nft.metadata.image)}
+              alt={nft.metadata.name}
+              className="w-full h-full object-cover"
             />
-            <button
-              onClick={() => nft.tokenId && listForSale(nft.tokenId)}
-              className="w-full bg-primary hover:bg-primary-dark text-white p-2 rounded transition-colors"
-            >
-              List for Sale
-            </button>
           </div>
-
-          <NFTSaleHistory tokenId={nft.tokenId} />
+          <h3 className="text-xl font-bold mb-2">{nft.metadata.name}</h3>
+          <p className="text-gray-400 mb-4">{nft.metadata.description}</p>
+          {nft.isListed && (
+            <p className="text-primary">
+              Price: {ethers.formatEther(nft.price)} ETH
+            </p>
+          )}
+          <audio
+            controls
+            className="w-full mt-4"
+            src={formatIPFSUrl(nft.metadata.audio)}
+          >
+            Your browser does not support the audio element.
+          </audio>
         </div>
       ))}
     </div>

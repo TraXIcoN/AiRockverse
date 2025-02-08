@@ -5,7 +5,7 @@ import WaveBackground from "@/components/WaveBackground";
 import Link from "next/link";
 import TrackHistory from "@/components/TrackHistory";
 import { useRouter } from "next/navigation";
-
+import FileUpload from "@/components/FileUpload";
 export default function Dashboard() {
   const { user, userData } = useAuth();
   const router = useRouter();
@@ -84,7 +84,7 @@ export default function Dashboard() {
           {/* Left Side - Upload Button */}
           <div className="flex items-center justify-center h-full">
             <button
-              className="w-64 py-16 rounded-full bg-primary/20 hover:bg-primary/30 
+              className="w-128 py-16 rounded-full bg-primary/20 hover:bg-primary/30
                          border-2 border-dashed border-primary/40 hover:border-primary/60 
                          flex flex-col items-center justify-center transition-all
                          group hover:scale-105 rounded-[40px]"
@@ -105,7 +105,7 @@ export default function Dashboard() {
                 />
               </svg>
               <span className="mt-4 text-xl text-primary-light font-medium">
-                Upload Track
+                <FileUpload />
               </span>
             </button>
           </div>

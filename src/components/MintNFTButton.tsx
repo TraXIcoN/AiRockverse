@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { uploadToPinata } from "@/lib/pinata";
 import { mintNFT } from "@/lib/nftContract";
-import Link from "next/link";
 
 interface MintNFTButtonProps {
   audioFile: File;
@@ -46,7 +45,7 @@ export default function MintNFTButton({
   };
 
   return (
-    <div className="space-y-4">
+    <div>
       <button
         onClick={handleMint}
         disabled={isMinting}
@@ -58,13 +57,6 @@ export default function MintNFTButton({
       >
         {isMinting ? "Minting..." : "Mint NFT"}
       </button>
-
-      <Link
-        href="/nfts"
-        className="block text-primary hover:text-primary-light text-sm mt-2"
-      >
-        View your NFT collection
-      </Link>
 
       {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { uploadToPinata } from "@/lib/pinata";
+import { uploadToPinata } from "@/lib/pinata_fileUpload";
 import { useAuth } from "@/context/AuthContext";
 import { AudioAnalyzer } from "@/lib/audioAnalysis";
 import { analyzeTrackWithAI } from "@/lib/openai";
@@ -178,7 +178,7 @@ export default function FileUpload() {
     <div className="w-full max-w-2xl mx-auto p-4">
       <div
         className={`
-          border-2 border-dashed rounded-lg p-8
+          rounded-lg p-8
           ${isDragging ? "border-primary bg-primary/10" : "border-gray-600"}
           transition-colors duration-200
         `}
@@ -195,27 +195,8 @@ export default function FileUpload() {
             </div>
           ) : (
             <>
-              <div className="mb-4">
-                <svg
-                  className="mx-auto h-12 w-12 text-gray-400"
-                  stroke="currentColor"
-                  fill="none"
-                  viewBox="0 0 48 48"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M24 27v-9m0 0l-3 3m3-3l3 3m-3 6v-3m-9-6h.01M9 27h.01M15 21h.01M15 27h.01M21 21h.01M21 27h.01M27 21h.01M27 27h.01M33 21h.01M33 27h.01M39 21h.01M39 27h.01"
-                  />
-                </svg>
-              </div>
               <p className="text-lg text-gray-300 mb-2">
                 Drag and drop your audio file here
-              </p>
-              <p className="text-sm text-gray-400 mb-4">
-                or click to select a file (MP3 or WAV, max 50MB)
               </p>
               <button
                 onClick={() => fileInputRef.current?.click()}
