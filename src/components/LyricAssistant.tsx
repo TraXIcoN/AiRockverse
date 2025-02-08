@@ -5,6 +5,8 @@ import { openai } from "@/lib/openai";
 import { motion, AnimatePresence } from "framer-motion";
 import { VoiceSynthesizer } from "@/lib/voiceSynthesis";
 import * as Tone from "tone";
+import { db } from "@/lib/firebase";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
 interface LyricAssistantProps {
   bpm: number;
@@ -13,6 +15,7 @@ interface LyricAssistantProps {
   isPlaying: boolean;
   currentTime: number;
   duration: number;
+  songId: string;
 }
 
 interface LyricLine {
@@ -28,6 +31,7 @@ export default function LyricAssistant({
   isPlaying,
   currentTime,
   duration,
+  songId,
 }: LyricAssistantProps) {
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,6 +70,38 @@ export default function LyricAssistant({
     newSections[index] = { ...newSections[index], [field]: value };
     setSections(newSections);
   };
+
+  // Fetch and display lyrics on mount
+  useEffect(() => {
+    const fetchLyrics = async () => {
+      if (!songId) return;
+
+      try {
+        const lyricDoc = await getDoc(doc(db, "lyrics", songId));
+        if (lyricDoc.exists()) {
+          const data = lyricDoc.data();
+
+          // Set form data
+          setTheme(data.theme || "");
+          setKeywords(data.keywords || []);
+          setStoryDescription(data.storyDescription || "");
+          setSelectedMood(data.mood || mood || "");
+          setSections(data.sections || []);
+
+          // Set generated lyrics if they exist
+          if (data.generatedLyrics) {
+            setLyrics(data.generatedLyrics);
+            setLoading(false); // Ensure loading is false since we have lyrics
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching lyrics:", error);
+        setError("Failed to load saved lyrics");
+      }
+    };
+
+    fetchLyrics();
+  }, [songId, mood]);
 
   const generateLyrics = async () => {
     setLoading(true);
@@ -171,6 +207,38 @@ export default function LyricAssistant({
     };
   }, []);
 
+  const handleGenerate = async () => {
+    if (!songId) {
+      console.error("No songId provided");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const lyricsData = {
+        sections,
+        theme,
+        keywords,
+        storyDescription,
+        mood: selectedMood,
+        bpm,
+        genre,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Save to Firebase
+      const docRef = doc(db, "lyrics", songId);
+      await setDoc(docRef, lyricsData);
+
+      generateLyrics();
+    } catch (error) {
+      console.error("Error generating/saving lyrics:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       <h2 className="text-2xl font-bold text-primary mb-4">
@@ -273,17 +341,38 @@ export default function LyricAssistant({
           </div>
         </div>
 
-        <button
-          onClick={generateLyrics}
-          disabled={loading || !selectedMood || !theme}
-          className={`w-full py-2 px-4 rounded-lg ${
-            loading || !selectedMood || !theme
-              ? "bg-primary/50 cursor-not-allowed"
-              : "bg-primary hover:bg-primary-dark"
-          } text-white transition-colors`}
-        >
-          {loading ? "Generating..." : "Generate Lyrics"}
-        </button>
+        {/* Display Lyrics if they exist */}
+        {lyrics.length > 0 && (
+          <div
+            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden rounded-lg bg-background-dark/50 
+                        scrollbar-thin scrollbar-thumb-primary scrollbar-track-background-light
+                        hover:scrollbar-thumb-primary-dark transition-colors"
+          >
+            {lyrics.map((line, index) => (
+              <div
+                key={index}
+                className="p-4 text-center text-lg transition-all whitespace-nowrap overflow-hidden text-ellipsis"
+              >
+                {line.text}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Generate button only if no lyrics exist */}
+        {lyrics.length === 0 && (
+          <button
+            onClick={handleGenerate}
+            disabled={loading || !selectedMood || !theme}
+            className={`w-full py-2 px-4 rounded-lg ${
+              loading || !selectedMood || !theme
+                ? "bg-primary/50 cursor-not-allowed"
+                : "bg-primary hover:bg-primary-dark"
+            } text-white transition-colors`}
+          >
+            {loading ? "Generating..." : "Generate Lyrics"}
+          </button>
+        )}
       </div>
 
       {error && <div className="text-red-500 text-sm mb-2">{error}</div>}

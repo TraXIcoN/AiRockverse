@@ -316,6 +316,7 @@ export default function TrackDetails() {
                   isPlaying={isPlaying}
                   currentTime={currentTime}
                   duration={duration}
+                  songId={track.id}
                 />
               )}
             </div>

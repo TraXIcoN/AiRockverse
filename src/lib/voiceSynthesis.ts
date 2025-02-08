@@ -48,8 +48,8 @@ export class VoiceSynthesizer {
       console.log("Lyrics length:", formattedLyrics.length); // Should be ~184 chars
 
       const payload = {
-        refer_voice: "vocal-2025010100000000-a0AAAaaa",
-        refer_instrumental: "instrumental-2025010100000000-Aaa0aAaA",
+        refer_voice: "79742cdf-86c9-432f-81f2-8c2126de42d9",
+        // refer_instrumental: "instrumental-2025010100000000-Aaa0aAaA",
         lyrics: formattedLyrics,
         model: "music-01",
         parameters: {
