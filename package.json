@@ -15,7 +15,9 @@
     "next": "15.1.6",
     "openai": "^4.83.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tone": "^15.0.4",
+    "wavesurfer.js": "^7.9.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

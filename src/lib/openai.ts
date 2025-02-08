@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
+export const openai = new OpenAI({
   apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
 });
@@ -71,7 +71,19 @@ export async function generateDetailedFeedback(
     messages: [
       {
         role: "system",
-        content: `You are an expert music producer and mixing engineer. Analyze tracks and provide detailed, genre-specific feedback. Focus on actionable improvements and technical details.`,
+        content: `You are an expert music producer and mixing engineer. Analyze tracks and provide detailed, genre-specific feedback. 
+        Always respond in this exact JSON format:
+        {
+          "genre": "detected genre",
+          "score": number between 0-100,
+          "improvements": ["improvement1", "improvement2", "improvement3"],
+          "strengths": ["strength1", "strength2", "strength3"],
+          "technicalFeedback": {
+            "mixing": "detailed mixing feedback",
+            "arrangement": "detailed arrangement feedback",
+            "sound_design": "detailed sound design feedback"
+          }
+        }`,
       },
       {
         role: "user",
@@ -83,18 +95,22 @@ export async function generateDetailedFeedback(
           - Mid Range: ${trackData.analysis.frequency.mid}
           - High End: ${trackData.analysis.frequency.high}
 
-          Provide detailed feedback including:
-          1. Detect the likely genre
-          2. Score out of 100
-          3. List specific improvements needed
-          4. List current strengths
-          5. Technical feedback for mixing, arrangement, and sound design
-          
-          Format as JSON.`,
+          Provide detailed feedback including genre detection, scoring, improvements, strengths, and technical feedback.
+          Remember to respond in the exact JSON format specified.`,
       },
     ],
-    response_format: { type: "json_object" },
+    temperature: 0.7,
+    max_tokens: 1000,
   });
 
-  return JSON.parse(response.choices[0].message.content) as DetailedFeedback;
+  try {
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error("No content in response");
+    }
+    return JSON.parse(content) as DetailedFeedback;
+  } catch (error) {
+    console.error("Error parsing OpenAI response:", error);
+    throw new Error("Failed to generate detailed feedback");
+  }
 }
