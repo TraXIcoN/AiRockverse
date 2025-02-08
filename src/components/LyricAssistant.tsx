@@ -134,7 +134,7 @@ export default function LyricAssistant({
           await synthRef.current?.speakLine(
             combinedLyrics,
             selectedMood,
-            genre
+            keywords
           );
           // Add slight pause between lines
           const pauseDuration = (60 / bpm) * 0.25; // Quarter beat pause

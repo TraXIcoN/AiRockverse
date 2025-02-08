@@ -35,7 +35,7 @@ export class VoiceSynthesizer {
   async speakLine(
     text: string,
     theme: string,
-    keywords: string
+    keywords: string[]
   ): Promise<Blob> {
     try {
       const url = "https://api.aimlapi.com/v2/generate/audio/minimax/generate";
