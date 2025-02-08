@@ -9,9 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@pinata/sdk": "^2.1.0",
     "firebase": "^11.3.0",
     "firebase-admin": "^13.1.0",
+    "framer-motion": "^12.4.1",
     "next": "15.1.6",
     "openai": "^4.83.0",
     "react": "^19.0.0",

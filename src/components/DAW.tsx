@@ -21,12 +21,33 @@ interface Effect {
   };
 }
 
-export default function DAW({ audioUrl }: { audioUrl: string }) {
+interface DAWProps {
+  audioUrl: string;
+  bpm: number;
+  genre: string;
+  mood?: string;
+  onPlaybackStateChange?: (
+    playing: boolean,
+    time: number,
+    duration: number
+  ) => void;
+}
+
+export default function DAW({
+  audioUrl,
+  bpm,
+  genre,
+  mood,
+  onPlaybackStateChange,
+}: DAWProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [feedback, setFeedback] = useState<string>("");
   const [effects, setEffects] = useState<Effect[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const playerRef = useRef<Tone.Player | null>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
@@ -34,50 +55,92 @@ export default function DAW({ audioUrl }: { audioUrl: string }) {
 
   useEffect(() => {
     // Initialize WaveSurfer
-    wavesurferRef.current = WaveSurfer.create({
-      container: "#waveform",
-      waveColor: "#8b5cf6",
-      progressColor: "#4c1d95",
-      cursorColor: "#4c1d95",
-      barWidth: 2,
-      barRadius: 3,
-      responsive: true,
-      height: 100,
-    });
+    if (!wavesurferRef.current) {
+      wavesurferRef.current = WaveSurfer.create({
+        container: "#waveform",
+        waveColor: "#8b5cf6",
+        progressColor: "#4c1d95",
+        cursorColor: "#4c1d95",
+        barWidth: 2,
+        barRadius: 3,
+        responsive: true,
+        height: 100,
+        backend: "WebAudio",
+        normalize: true,
+      });
 
-    // Load audio
-    wavesurferRef.current.load(audioUrl);
+      // Load audio
+      wavesurferRef.current.load(audioUrl);
 
-    // Initialize Tone.js player
-    playerRef.current = new Tone.Player(audioUrl, () => {
-      setIsLoaded(true);
-      initializeEffects();
-    }).toDestination();
+      // Event listeners
+      wavesurferRef.current.on("ready", () => {
+        console.log("WaveSurfer is ready");
+        setIsLoaded(true);
+        const totalDuration = wavesurferRef.current?.getDuration() || 0;
+        setDuration(totalDuration);
+        onPlaybackStateChange?.(false, 0, totalDuration);
+      });
+
+      wavesurferRef.current.on("audioprocess", (time: number) => {
+        console.log("Audio processing:", time);
+        setCurrentTime(time);
+        onPlaybackStateChange?.(isPlaying, time, duration);
+      });
+
+      wavesurferRef.current.on("play", () => {
+        console.log("Audio playing");
+        setIsPlaying(true);
+        onPlaybackStateChange?.(true, currentTime, duration);
+      });
+
+      wavesurferRef.current.on("pause", () => {
+        console.log("Audio paused");
+        setIsPlaying(false);
+        onPlaybackStateChange?.(false, currentTime, duration);
+      });
+
+      wavesurferRef.current.on("finish", () => {
+        console.log("Audio finished");
+        setIsPlaying(false);
+        onPlaybackStateChange?.(false, duration, duration);
+      });
+
+      wavesurferRef.current.on("error", (error) => {
+        console.error("WaveSurfer error:", error);
+      });
+    }
 
     return () => {
-      wavesurferRef.current?.destroy();
-      playerRef.current?.dispose();
-      effectChainRef.current.forEach((effect) => effect.dispose());
+      if (wavesurferRef.current) {
+        wavesurferRef.current.destroy();
+        wavesurferRef.current = null;
+      }
     };
   }, [audioUrl]);
+
+  useEffect(() => {
+    if (isLoaded && wavesurferRef.current) {
+      initializeEffects();
+    }
+  }, [isLoaded]);
 
   const initializeEffects = () => {
     const reverb = new Tone.Reverb({
       decay: 1.5,
       wet: 0.5,
-    });
+    }).toDestination();
 
     const eq = new Tone.EQ3({
       low: 0,
       mid: 0,
       high: 0,
-    });
+    }).toDestination();
 
     const delay = new Tone.FeedbackDelay({
       delayTime: 0.25,
       feedback: 0.3,
       wet: 0.3,
-    });
+    }).toDestination();
 
     const newEffects: Effect[] = [
       {
@@ -114,33 +177,29 @@ export default function DAW({ audioUrl }: { audioUrl: string }) {
       },
     ];
 
-    // Connect effects chain
-    if (playerRef.current) {
-      playerRef.current.disconnect();
-      playerRef.current.chain(
-        ...newEffects.map((e) => e.node),
-        Tone.Destination
-      );
-    }
-
-    effectChainRef.current = newEffects.map((e) => e.node);
     setEffects(newEffects);
   };
 
-  const togglePlayback = () => {
-    if (!isLoaded) return;
+  const togglePlayback = async () => {
+    if (!wavesurferRef.current || !isLoaded) return;
 
-    if (isPlaying) {
-      playerRef.current?.stop();
-      wavesurferRef.current?.stop();
-    } else {
-      playerRef.current?.start();
-      wavesurferRef.current?.play();
+    try {
+      if (isPlaying) {
+        await wavesurferRef.current.pause();
+      } else {
+        // Ensure audio context is resumed
+        const audioContext = wavesurferRef.current.getMediaElement()?.context;
+        if (audioContext?.state === "suspended") {
+          await audioContext.resume();
+        }
+        await wavesurferRef.current.play();
+      }
+    } catch (error) {
+      console.error("Playback error:", error);
     }
-    setIsPlaying(!isPlaying);
   };
 
-  const handleParameterChange = async (
+  const handleParameterChange = (
     effectId: string,
     parameter: string,
     value: number
@@ -148,10 +207,36 @@ export default function DAW({ audioUrl }: { audioUrl: string }) {
     const effect = effects.find((e) => e.id === effectId);
     if (!effect) return;
 
-    // Update effect parameter
-    (effect.node as any)[parameter] = value;
+    switch (effect.type) {
+      case "reverb":
+        if (parameter === "decay") {
+          (effect.node as Tone.Reverb).decay = value;
+        } else if (parameter === "wet") {
+          (effect.node as Tone.Reverb).wet.value = value;
+        }
+        break;
 
-    // Update state
+      case "eq":
+        if (parameter === "low") {
+          (effect.node as Tone.EQ3).low.value = value;
+        } else if (parameter === "mid") {
+          (effect.node as Tone.EQ3).mid.value = value;
+        } else if (parameter === "high") {
+          (effect.node as Tone.EQ3).high.value = value;
+        }
+        break;
+
+      case "delay":
+        if (parameter === "delayTime") {
+          (effect.node as Tone.FeedbackDelay).delayTime.value = value;
+        } else if (parameter === "feedback") {
+          (effect.node as Tone.FeedbackDelay).feedback.value = value;
+        } else if (parameter === "wet") {
+          (effect.node as Tone.FeedbackDelay).wet.value = value;
+        }
+        break;
+    }
+
     setEffects(
       effects.map((e) =>
         e.id === effectId
@@ -166,8 +251,8 @@ export default function DAW({ audioUrl }: { audioUrl: string }) {
       )
     );
 
-    // Get AI feedback
-    await getAIFeedback();
+    // Set pending changes flag
+    setPendingChanges(true);
   };
 
   const getAIFeedback = async () => {
@@ -211,10 +296,13 @@ export default function DAW({ audioUrl }: { audioUrl: string }) {
     } finally {
       setIsAnalyzing(false);
     }
+
+    // Reset pending changes flag
+    setPendingChanges(false);
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 space-y-6">
+    <div className="w-full space-y-6">
       {/* Waveform */}
       <div id="waveform" className="bg-background-light rounded-lg p-4" />
 
@@ -222,8 +310,12 @@ export default function DAW({ audioUrl }: { audioUrl: string }) {
       <div className="flex justify-center space-x-4">
         <button
           onClick={togglePlayback}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-lg transition-colors"
           disabled={!isLoaded}
+          className={`px-6 py-2 rounded-lg transition-colors ${
+            isLoaded
+              ? "bg-primary hover:bg-primary-dark text-white"
+              : "bg-primary/50 cursor-not-allowed text-white/50"
+          }`}
         >
           {isPlaying ? "Stop" : "Play"}
         </button>
@@ -263,9 +355,27 @@ export default function DAW({ audioUrl }: { audioUrl: string }) {
         ))}
       </div>
 
-      {/* AI Feedback */}
-      <div className="bg-background-light p-4 rounded-lg">
-        <h3 className="text-lg font-bold text-primary mb-2">AI Feedback</h3>
+      {/* AI Feedback Section */}
+      <div className="bg-background p-4 rounded-lg">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-primary">AI Feedback</h3>
+          <button
+            onClick={getAIFeedback}
+            disabled={isAnalyzing || !pendingChanges}
+            className={`px-4 py-2 rounded-lg ${
+              isAnalyzing || !pendingChanges
+                ? "bg-primary/50 cursor-not-allowed"
+                : "bg-primary hover:bg-primary-dark"
+            } text-white transition-colors`}
+          >
+            {isAnalyzing
+              ? "Analyzing..."
+              : pendingChanges
+              ? "Get Feedback"
+              : "No Changes"}
+          </button>
+        </div>
+
         <div className="text-gray-300">
           {isAnalyzing ? (
             <div className="flex items-center space-x-2">
@@ -273,7 +383,8 @@ export default function DAW({ audioUrl }: { audioUrl: string }) {
               <span>Analyzing...</span>
             </div>
           ) : (
-            feedback || "Adjust parameters to get AI feedback"
+            feedback ||
+            'Make changes and click "Get Feedback" for AI suggestions'
           )}
         </div>
       </div>
