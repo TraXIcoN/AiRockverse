@@ -1,7 +1,22 @@
+"use client";
+
 import Link from "next/link";
-import UploadForm from "@/components/uploadForm";
+import UploadForm from "@/components/UploadForm";
+import { useAuth } from "@/context/AuthContext";
+import UsernameForm from "@/components/UsernameForm";
 
 export default function Home() {
+  const { user, loading, userData, signInWithGoogle } = useAuth();
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  // // If user is logged in but hasn't set a username
+  // if (user && !userData?.displayName) {
+  //   return <UsernameForm />;
+  // }
+
   return (
     <main className="min-h-screen bg-background">
       {/* Hero Section */}

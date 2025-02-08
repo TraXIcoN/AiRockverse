@@ -2,49 +2,71 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import Navbar from "@/components/NavBar";
+import FileUpload from "@/components/FileUpload";
+import TrackHistory from "@/components/TrackHistory";
 
 export default function DashboardPage() {
-  const { user, signOut } = useAuth();
+  const { user, userData, loading, error } = useAuth();
   const router = useRouter();
+  const [showUpload, setShowUpload] = useState(false);
 
-  // Protect the dashboard route
   useEffect(() => {
-    if (!user) {
-      router.push("/auth");
+    if (!loading && !user) {
+      router.push("/");
     }
-  }, [user, router]);
+  }, [user, loading, router]);
 
-  // Get user display name or email
-  const getUserDisplayName = () => {
-    if (!user) return "Producer";
-    if (user.displayName) return user.displayName;
-    if (user.email) return user.email.split("@")[0]; // Get the part before @ in email
-    return "Producer";
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-primary">Loading...</div>
+      </div>
+    );
+  }
 
-  if (!user) return null; // Don't render anything while checking auth
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">
-              Welcome, {getUserDisplayName()}
-            </h1>
-            <p className="text-gray-400">
-              Track your progress and improve your beats
-            </p>
-          </div>
-          <button
-            onClick={signOut}
-            className="bg-primary/10 hover:bg-primary/20 text-primary px-4 py-2 rounded-lg transition-all duration-200"
-          >
-            Sign Out
-          </button>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24">
+        {/* Centered Welcome Message */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-light to-primary bg-clip-text text-transparent">
+            Hi, {userData?.displayName || "Producer"}!
+          </h1>
+          <p className="text-gray-400 mt-2">
+            Track your progress and improve your beats
+          </p>
         </div>
+
+        {showUpload ? (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-background-light rounded-lg p-6 max-w-3xl w-full mx-4 relative">
+              <button
+                onClick={() => setShowUpload(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+              <h2 className="text-2xl font-bold text-primary mb-6 text-center">
+                Upload Your Track
+              </h2>
+              <FileUpload />
+            </div>
+          </div>
+        ) : null}
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -68,13 +90,16 @@ export default function DashboardPage() {
           <h2 className="text-xl font-bold text-primary mb-4">
             Upload New Track
           </h2>
-          <div className="flex items-center justify-center h-40 border-2 border-dashed border-primary/20 rounded-lg">
+          <div
+            onClick={() => setShowUpload(true)}
+            className="flex items-center justify-center h-40 border-2 border-dashed border-primary/20 rounded-lg cursor-pointer hover:border-primary/40 transition-colors"
+          >
             <div className="text-center">
               <p className="text-gray-400 mb-2">
-                Drag and drop your audio file here
+                Click here to upload your audio file
               </p>
-              <button className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-all duration-200">
-                Select File
+              <button className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors">
+                Upload Track
               </button>
             </div>
           </div>
@@ -85,10 +110,7 @@ export default function DashboardPage() {
           <h2 className="text-xl font-bold text-primary mb-4">
             Recent Activity
           </h2>
-          <div className="text-center text-gray-400 py-8">
-            <p>No activity yet</p>
-            <p className="text-sm">Upload your first track to get started</p>
-          </div>
+          <TrackHistory />
         </div>
       </div>
     </div>

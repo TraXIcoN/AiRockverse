@@ -1,26 +1,35 @@
 import axios from "axios";
 
-export const uploadToPinata = async (file: File) => {
+interface PinataResponse {
+  IpfsHash: string;
+  PinSize: number;
+  Timestamp: string;
+}
+
+export async function uploadToPinata(file: File): Promise<string> {
   try {
-    // Create form data
     const formData = new FormData();
     formData.append("file", file);
 
-    // Make request to Pinata
-    const res = await axios.post(
+    const response = await fetch(
       "https://api.pinata.cloud/pinning/pinFileToIPFS",
-      formData,
       {
+        method: "POST",
         headers: {
-          "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${process.env.NEXT_PUBLIC_PINATA_JWT}`,
         },
+        body: formData,
       }
     );
 
-    return `https://gateway.pinata.cloud/ipfs/${res.data.IpfsHash}`;
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+
+    const data: PinataResponse = await response.json();
+    return `https://gateway.pinata.cloud/ipfs/${data.IpfsHash}`;
   } catch (error) {
     console.error("Error uploading to Pinata:", error);
     throw error;
   }
-};
+}
