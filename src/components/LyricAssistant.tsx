@@ -21,49 +21,6 @@ interface LyricLine {
   endTime: number;
 }
 
-const SAMPLE_LYRICS = [
-  {
-    text: "Through the mist of digital dreams",
-    startTime: 0,
-    endTime: 4,
-  },
-  {
-    text: "Waves of sound cascade in streams",
-    startTime: 4,
-    endTime: 8,
-  },
-  {
-    text: "Electronic pulses dance and flow",
-    startTime: 8,
-    endTime: 12,
-  },
-  {
-    text: "In this space where rhythms grow",
-    startTime: 12,
-    endTime: 16,
-  },
-  {
-    text: "Synthesized emotions take their flight",
-    startTime: 16,
-    endTime: 20,
-  },
-  {
-    text: "Through the darkness of the night",
-    startTime: 20,
-    endTime: 24,
-  },
-  {
-    text: "Every beat tells a story untold",
-    startTime: 24,
-    endTime: 28,
-  },
-  {
-    text: "As these digital moments unfold",
-    startTime: 28,
-    endTime: 32,
-  },
-];
-
 export default function LyricAssistant({
   bpm,
   genre,
@@ -77,8 +34,9 @@ export default function LyricAssistant({
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState("");
   const [selectedMood, setSelectedMood] = useState(mood || "");
-  const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [isVoicePlaying, setIsVoicePlaying] = useState(false);
   const synthRef = useRef<VoiceSynthesizer | null>(null);
+  const currentLineRef = useRef<number>(-1);
 
   const moodOptions = [
     "Melancholic",
@@ -96,58 +54,104 @@ export default function LyricAssistant({
   const generateLyrics = async () => {
     setLoading(true);
     try {
-      const timePerLine = (60 / bpm) * 4;
+      const prompt = `Write 8 lines of ${selectedMood.toLowerCase()} lyrics about ${theme} in the style of ${genre} music. 
+                     Make it rhythmic and suitable for a song with ${bpm} BPM.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+      });
+
+      const generatedText = completion.choices[0].message.content;
+      if (!generatedText) throw new Error("No lyrics generated");
+
+      // Split into lines and remove empty lines
+      const lyricsArray = generatedText
+        .split("\n")
+        .filter((line) => line.trim().length > 0)
+        .slice(0, 8); // Ensure we only take 8 lines
+
+      const timePerLine = (60 / bpm) * 4; // 4 beats per line
       const spaceBetweenLines = timePerLine * 0.5;
 
-      const timedLyrics = SAMPLE_LYRICS.map((line, index) => ({
-        text: line.text,
+      const timedLyrics = lyricsArray.map((text, index) => ({
+        text: text.replace(/^\d+\.\s*/, "").trim(), // Remove any numbering
         startTime: index * (timePerLine + spaceBetweenLines),
         endTime: index * (timePerLine + spaceBetweenLines) + timePerLine,
       }));
 
       setLyrics(timedLyrics);
-      initializeSpeechSynthesis(timedLyrics);
-    } catch (err) {
-      console.error("Error setting lyrics:", err);
-      setError("Failed to set lyrics");
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const initializeSpeechSynthesis = (lines: LyricLine[]) => {
-    speechSynthRef.current = new SpeechSynthesisUtterance();
-    speechSynthRef.current.rate = bpm / 120;
-    speechSynthRef.current.pitch = selectedMood === "Dark" ? 0.8 : 1.2;
-  };
-
-  useEffect(() => {
-    if (lyrics.length > 0) {
+      // Initialize voice synthesizer after setting lyrics
       synthRef.current = new VoiceSynthesizer({
         bpm,
         mood: selectedMood,
         genre,
       });
+    } catch (err) {
+      console.error("Error generating lyrics:", err);
+      setError("Failed to generate lyrics");
+    } finally {
+      setLoading(false);
     }
-  }, [lyrics, bpm, selectedMood, genre]);
+  };
 
+  const playVoice = async () => {
+    if (!synthRef.current || !lyrics.length) return;
+
+    try {
+      setIsVoicePlaying(true);
+      currentLineRef.current = 0;
+
+      const speakNextLine = async (index: number) => {
+        if (index >= lyrics.length) {
+          stopVoice();
+          return;
+        }
+
+        const line = lyrics[index];
+
+        try {
+          await synthRef.current?.speakLine(line.text);
+          // Add slight pause between lines
+          const pauseDuration = (60 / bpm) * 0.25; // Quarter beat pause
+          setTimeout(() => {
+            speakNextLine(index + 1);
+          }, pauseDuration * 1000);
+        } catch (error) {
+          console.error("Error speaking line:", error);
+          stopVoice();
+        }
+      };
+
+      await speakNextLine(0);
+    } catch (error) {
+      console.error("Error starting voice playback:", error);
+      stopVoice();
+    }
+  };
+
+  const stopVoice = () => {
+    setIsVoicePlaying(false);
+    currentLineRef.current = -1;
+    if (synthRef.current) {
+      synthRef.current.stop();
+    }
+  };
+
+  // Cleanup on unmount
   useEffect(() => {
-    if (!isPlaying || !lyrics.length || !synthRef.current) return;
-
-    const currentLine = lyrics.find(
-      (line) => currentTime >= line.startTime && currentTime <= line.endTime
-    );
-
-    if (currentLine) {
-      const duration = currentLine.endTime - currentLine.startTime;
-      synthRef.current.speakLine(currentLine.text, bpm / 60, duration);
-    }
-
     return () => {
-      // Cleanup
-      Tone.Transport.stop();
+      if (synthRef.current) {
+        synthRef.current.stop();
+      }
     };
-  }, [isPlaying, currentTime, lyrics]);
+  }, []);
 
   return (
     <div className="h-full flex flex-col">
@@ -155,7 +159,7 @@ export default function LyricAssistant({
         AI Lyric Assistant
       </h2>
 
-      {/* Input Section - More compact */}
+      {/* Input Section */}
       <div className={`${lyrics.length > 0 ? "mb-2" : "mb-4"}`}>
         <input
           type="text"
@@ -190,51 +194,68 @@ export default function LyricAssistant({
               : "bg-primary hover:bg-primary-dark"
           } text-white transition-colors`}
         >
-          {loading ? "Loading..." : "Generate Lyrics"}
+          {loading ? "Generating..." : "Generate Lyrics"}
         </button>
       </div>
 
       {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
 
-      {/* Lyrics Display - Fixed height for 8 lines */}
+      {/* Lyrics Display */}
       {lyrics.length > 0 && (
-        <div
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden rounded-lg bg-background-dark/50 
-                    scrollbar-thin scrollbar-thumb-primary scrollbar-track-background-light
-                    hover:scrollbar-thumb-primary-dark transition-colors"
-        >
-          <AnimatePresence>
-            {lyrics.map((line, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{
-                  opacity:
+        <>
+          <div className="flex justify-center mb-4">
+            <button
+              onClick={isVoicePlaying ? stopVoice : playVoice}
+              className={`px-8 py-3 rounded-lg transition-colors text-lg font-semibold ${
+                isVoicePlaying
+                  ? "bg-red-500 hover:bg-red-600"
+                  : "bg-primary hover:bg-primary-dark"
+              } text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200`}
+            >
+              {isVoicePlaying ? "Stop Voice" : "Play Voice"}
+            </button>
+          </div>
+
+          <div
+            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden rounded-lg bg-background-dark/50 
+                        scrollbar-thin scrollbar-thumb-primary scrollbar-track-background-light
+                        hover:scrollbar-thumb-primary-dark transition-colors"
+          >
+            <AnimatePresence>
+              {lyrics.map((line, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{
+                    opacity:
+                      currentTime >= line.startTime &&
+                      currentTime <= line.endTime
+                        ? 1
+                        : 0.6,
+                    y: 0,
+                    scale:
+                      currentTime >= line.startTime &&
+                      currentTime <= line.endTime
+                        ? 1.05
+                        : 1,
+                  }}
+                  transition={{ duration: 0.3 }}
+                  className={`p-4 text-center text-lg transition-all whitespace-nowrap overflow-hidden text-ellipsis ${
                     currentTime >= line.startTime && currentTime <= line.endTime
-                      ? 1
-                      : 0.6,
-                  y: 0,
-                  scale:
-                    currentTime >= line.startTime && currentTime <= line.endTime
-                      ? 1.05
-                      : 1,
-                }}
-                transition={{ duration: 0.3 }}
-                className={`p-4 text-center text-lg transition-all whitespace-nowrap overflow-hidden text-ellipsis ${
-                  currentTime >= line.startTime && currentTime <= line.endTime
-                    ? "text-primary font-bold"
-                    : "text-gray-400"
-                }`}
-                style={{
-                  height: "3rem", // Fixed height for each line
-                  lineHeight: "1.5rem", // Consistent line height
-                }}
-              >
-                {line.text}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+                      ? "text-primary font-bold"
+                      : "text-gray-400"
+                  }`}
+                  style={{
+                    height: "3rem",
+                    lineHeight: "1.5rem",
+                  }}
+                >
+                  {line.text}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </>
       )}
     </div>
   );

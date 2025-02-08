@@ -27,39 +27,61 @@ interface DetailedFeedback {
   };
 }
 
-export async function analyzeTrackWithAI(analysis: AudioAnalysis) {
+export async function analyzeTrackWithAI(analysis: any) {
   try {
-    const response = await openai.chat.completions.create({
+    const prompt = `
+      Analyze this track:
+      BPM: ${analysis.bpm}
+      Energy: ${analysis.averageEnergy?.toFixed(2)}
+      Loudness: ${analysis.averageLoudness?.toFixed(2)}
+      Spectral:
+      - Centroid: ${analysis.spectralCentroid?.toFixed(2)}
+      - Rolloff: ${analysis.spectralRolloff?.toFixed(2)}
+      - Flatness: ${analysis.spectralFlatness?.toFixed(2)}
+      Dynamics:
+      - Peak: ${analysis.dynamics?.peak?.toFixed(2)}
+      - Range: ${analysis.dynamics?.dynamicRange?.toFixed(2)}
+      Sections: ${analysis.sections?.length || 0}
+
+      Provide a concise JSON response:
+      {
+        "genre": "main genre",
+        "subgenres": ["max 2 subgenres"],
+        "mood": "primary mood",
+        "moodTags": ["3-4 mood keywords"],
+        "style": "brief style description",
+        "productionQuality": {
+          "strengths": ["2-3 points"],
+          "weaknesses": ["2-3 points"]
+        },
+        "technicalFeedback": {
+          "mixing": "1-2 sentences",
+          "arrangement": "1-2 sentences",
+          "sound_design": "1-2 sentences"
+        },
+        "notableElements": ["2-3 key features"],
+        "character": "1-2 sentence summary"
+      }
+    `;
+
+    const completion = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
         {
           role: "system",
-          content:
-            "You are a professional music producer providing detailed feedback on tracks.",
+          content: "You are a music producer providing concise track analysis.",
         },
         {
           role: "user",
-          content: `Please analyze this track with the following metrics:
-            BPM: ${analysis.bpm}
-            Loudness: ${analysis.loudness}
-            Frequency Analysis:
-            - Low End: ${analysis.frequency.low}
-            - Mid Range: ${analysis.frequency.mid}
-            - High End: ${analysis.frequency.high}
-            
-            Provide feedback on:
-            1. Mix balance
-            2. Sound design
-            3. Rhythm and groove
-            4. Areas for improvement`,
+          content: prompt,
         },
       ],
     });
 
-    return response.choices[0].message.content;
+    return JSON.parse(completion.choices[0].message.content);
   } catch (error) {
-    console.error("Error analyzing with OpenAI:", error);
-    throw error;
+    console.error("Error in AI analysis:", error);
+    throw new Error("Failed to analyze track with AI");
   }
 }
 

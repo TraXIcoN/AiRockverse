@@ -5,6 +5,7 @@ import * as Tone from "tone";
 import WaveSurfer from "wavesurfer.js";
 import { useAuth } from "@/context/AuthContext";
 import { openai } from "@/lib/openai";
+import { VoiceSynthesizer } from "@/lib/voiceSynthesis";
 
 interface Effect {
   id: string;
@@ -26,6 +27,7 @@ interface DAWProps {
   bpm: number;
   genre: string;
   mood?: string;
+  lyrics?: Array<{ text: string; startTime: number; endTime: number }>;
   onPlaybackStateChange?: (
     playing: boolean,
     time: number,
@@ -38,6 +40,7 @@ export default function DAW({
   bpm,
   genre,
   mood,
+  lyrics = [],
   onPlaybackStateChange,
 }: DAWProps) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -52,6 +55,7 @@ export default function DAW({
   const playerRef = useRef<Tone.Player | null>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const effectChainRef = useRef<Tone.Effect[]>([]);
+  const synthRef = useRef<VoiceSynthesizer | null>(null);
 
   useEffect(() => {
     // Initialize WaveSurfer
@@ -180,12 +184,50 @@ export default function DAW({
     setEffects(newEffects);
   };
 
+  // Initialize voice synthesizer
+  useEffect(() => {
+    if (lyrics?.length > 0) {
+      synthRef.current = new VoiceSynthesizer({
+        bpm,
+        mood: mood || "neutral",
+        genre,
+      });
+    }
+    return () => {
+      if (synthRef.current) {
+        Tone.Transport.stop();
+      }
+    };
+  }, [lyrics, bpm, mood, genre]);
+
+  // Handle voice synthesis for current line
+  useEffect(() => {
+    if (!isPlaying || !lyrics?.length || !synthRef.current) return;
+
+    const currentLine = lyrics.find(
+      (line) => currentTime >= line.startTime && currentTime <= line.endTime
+    );
+
+    if (currentLine) {
+      const duration = currentLine.endTime - currentLine.startTime;
+      synthRef.current.speakLine(currentLine.text, bpm / 60, duration);
+    }
+
+    return () => {
+      Tone.Transport.stop();
+    };
+  }, [isPlaying, currentTime, lyrics, bpm]);
+
+  // Modified togglePlayback to handle both tracks
   const togglePlayback = async () => {
     if (!wavesurferRef.current || !isLoaded) return;
 
     try {
       if (isPlaying) {
         await wavesurferRef.current.pause();
+        if (synthRef.current) {
+          Tone.Transport.stop();
+        }
       } else {
         // Ensure audio context is resumed
         const audioContext = wavesurferRef.current.getMediaElement()?.context;
@@ -193,6 +235,7 @@ export default function DAW({
           await audioContext.resume();
         }
         await wavesurferRef.current.play();
+        // Voice synthesis will automatically sync through the currentTime effect
       }
     } catch (error) {
       console.error("Playback error:", error);
@@ -388,6 +431,40 @@ export default function DAW({
           )}
         </div>
       </div>
+
+      {/* Voice Track Visualization */}
+      {lyrics?.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-lg font-bold text-primary mb-2">Voice Track</h3>
+          <div className="bg-background-light rounded-lg p-4">
+            <div className="h-12 relative">
+              {lyrics.map((line, index) => (
+                <div
+                  key={index}
+                  className={`absolute h-full transition-opacity duration-300 ${
+                    currentTime >= line.startTime && currentTime <= line.endTime
+                      ? "opacity-100"
+                      : "opacity-30"
+                  }`}
+                  style={{
+                    left: `${(line.startTime / duration) * 100}%`,
+                    width: `${
+                      ((line.endTime - line.startTime) / duration) * 100
+                    }%`,
+                    background:
+                      "linear-gradient(90deg, #8b5cf6 0%, #6d28d9 100%)",
+                    borderRadius: "0.25rem",
+                  }}
+                >
+                  <div className="absolute bottom-full mb-1 text-xs text-gray-400 whitespace-nowrap">
+                    {line.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

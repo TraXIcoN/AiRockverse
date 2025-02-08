@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { uploadToPinata } from "@/lib/pinata";
 import { useAuth } from "@/context/AuthContext";
 import { AudioAnalyzer } from "@/lib/audioAnalysis";
@@ -15,6 +15,7 @@ export default function FileUpload() {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
+  const analyzerRef = useRef<AudioAnalyzer | null>(null);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -47,6 +48,10 @@ export default function FileUpload() {
     if (file.size > maxSize) {
       throw new Error("File size too large. Maximum size is 50MB.");
     }
+  };
+
+  const formatAnalysis = (data: any) => {
+    return JSON.stringify(data, null, 2);
   };
 
   const analyzeTrack = async (url: string) => {
@@ -89,33 +94,55 @@ export default function FileUpload() {
 
       // Upload to Pinata
       const ipfsUrl = await uploadToPinata(file);
+      console.log("File uploaded to IPFS:", ipfsUrl);
 
       // Initialize audio analyzer
-      const analyzer = new AudioAnalyzer();
-      await analyzer.loadAudio(ipfsUrl);
+      analyzerRef.current = new AudioAnalyzer();
 
-      // Get audio analysis
-      const audioAnalysis = await analyzer.analyze();
+      // Load and analyze audio
+      console.log("Loading audio...");
+      await analyzerRef.current.loadAudio(ipfsUrl);
+
+      console.log("Analyzing audio...");
+      const audioAnalysis = await analyzerRef.current.analyze();
+      console.log("Audio analysis complete:", audioAnalysis);
+
+      // Validate analysis data
+      if (!audioAnalysis || !audioAnalysis.averageEnergy) {
+        throw new Error("Invalid audio analysis data");
+      }
+
+      // Wait a moment to ensure audio is fully processed
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Get AI feedback
+      console.log("Getting AI feedback...");
       const feedback = await analyzeTrackWithAI(audioAnalysis);
+      console.log("AI feedback received:", feedback);
 
       // Save to Firebase
-      await saveTrackAnalysis(user.uid, {
+      const trackData = {
         userId: user.uid,
         fileName: file.name,
         ipfsUrl,
         analysis: audioAnalysis,
         aiFeedback: feedback,
-      });
+      };
 
-      setAnalysis(feedback);
+      console.log("Saving track data:", trackData);
+      await saveTrackAnalysis(user.uid, trackData);
+
+      setAnalysis(formatAnalysis(feedback));
       setSuccess("Track analyzed and saved successfully!");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to process track");
       console.error("Processing error:", err);
+      setError(err instanceof Error ? err.message : "Failed to process track");
     } finally {
       setUploading(false);
+      if (analyzerRef.current) {
+        analyzerRef.current.dispose();
+        analyzerRef.current = null;
+      }
     }
   };
 
@@ -136,6 +163,16 @@ export default function FileUpload() {
       await handleFile(files[0]);
     }
   };
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (analyzerRef.current) {
+        analyzerRef.current.dispose();
+        analyzerRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="w-full max-w-2xl mx-auto p-4">
@@ -216,7 +253,7 @@ export default function FileUpload() {
           <h3 className="text-xl font-bold text-primary mb-2">
             Analysis Results
           </h3>
-          <pre className="whitespace-pre-wrap text-gray-300 text-sm">
+          <pre className="whitespace-pre-wrap text-gray-300 text-sm overflow-auto">
             {analysis}
           </pre>
         </div>

@@ -9,6 +9,8 @@ import {
   where,
   orderBy,
   getDocs,
+  serverTimestamp,
+  Timestamp,
 } from "firebase/firestore";
 import { generateDetailedFeedback } from "./openai";
 
@@ -102,44 +104,108 @@ export async function updateUserDocument(uid: string, data: Partial<UserData>) {
   }
 }
 
-export async function saveTrackAnalysis(
-  userId: string,
-  trackData: Omit<TrackAnalysis, "id" | "createdAt" | "updatedAt">
-) {
+export async function saveTrackAnalysis(userId: string, data: any) {
   try {
-    const tracksCollectionRef = collection(db, "tracks");
-    const newTrackRef = doc(tracksCollectionRef);
-
-    const trackWithMetadata = {
-      ...trackData,
-      id: newTrackRef.id,
-      userId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    // Ensure all analysis values are valid numbers or default to 0
+    const safeAnalysis = {
+      bpm: Number(data.analysis?.bpm) || 120,
+      averageEnergy: Number(data.analysis?.averageEnergy) || 0,
+      averageLoudness: Number(data.analysis?.averageLoudness) || 0,
+      spectralCentroid: Number(data.analysis?.spectralCentroid) || 0,
+      spectralRolloff: Number(data.analysis?.spectralRolloff) || 0,
+      spectralFlatness: Number(data.analysis?.spectralFlatness) || 0,
+      dynamics: {
+        peak: Number(data.analysis?.dynamics?.peak) || 0,
+        dynamicRange: Number(data.analysis?.dynamics?.dynamicRange) || 0,
+      },
+      sections: Array.isArray(data.analysis?.sections)
+        ? data.analysis.sections
+        : [],
     };
 
-    await setDoc(newTrackRef, trackWithMetadata);
-    return trackWithMetadata;
+    // Ensure AI feedback has all required fields
+    const safeAiFeedback = {
+      genre: data.aiFeedback?.genre || "Unknown",
+      subgenres: Array.isArray(data.aiFeedback?.subgenres)
+        ? data.aiFeedback.subgenres
+        : [],
+      mood: data.aiFeedback?.mood || "Unknown",
+      moodTags: Array.isArray(data.aiFeedback?.moodTags)
+        ? data.aiFeedback.moodTags
+        : [],
+      style: data.aiFeedback?.style || "Unknown",
+      productionQuality: {
+        strengths: Array.isArray(data.aiFeedback?.productionQuality?.strengths)
+          ? data.aiFeedback.productionQuality.strengths
+          : [],
+        weaknesses: Array.isArray(
+          data.aiFeedback?.productionQuality?.weaknesses
+        )
+          ? data.aiFeedback.productionQuality.weaknesses
+          : [],
+      },
+      technicalFeedback: {
+        mixing:
+          data.aiFeedback?.technicalFeedback?.mixing || "No feedback available",
+        arrangement:
+          data.aiFeedback?.technicalFeedback?.arrangement ||
+          "No feedback available",
+        sound_design:
+          data.aiFeedback?.technicalFeedback?.sound_design ||
+          "No feedback available",
+      },
+      notableElements: Array.isArray(data.aiFeedback?.notableElements)
+        ? data.aiFeedback.notableElements
+        : [],
+      character: data.aiFeedback?.character || "No description available",
+    };
+
+    // Create a new document with a generated ID
+    const docRef = doc(collection(db, "tracks"));
+    const trackDoc = {
+      id: docRef.id, // Add the ID to the document data
+      userId,
+      fileName: data.fileName,
+      ipfsUrl: data.ipfsUrl,
+      createdAt: serverTimestamp(),
+      analysis: safeAnalysis,
+      aiFeedback: safeAiFeedback,
+    };
+
+    // Save the document
+    await setDoc(docRef, trackDoc);
+    return docRef.id;
   } catch (error) {
     console.error("Error saving track analysis:", error);
-    throw error;
+    throw new Error("Failed to save track analysis");
   }
 }
 
-export async function getUserTracks(userId: string): Promise<TrackAnalysis[]> {
+export async function getUserTracks(userId: string): Promise<any[]> {
   try {
     const tracksCollectionRef = collection(db, "tracks");
-    // Simplified query without ordering
     const q = query(tracksCollectionRef, where("userId", "==", userId));
 
     const querySnapshot = await getDocs(q);
-    const tracks = querySnapshot.docs.map((doc) => doc.data() as TrackAnalysis);
+    const tracks = querySnapshot.docs.map((doc) => ({
+      id: doc.id, // Ensure ID is included
+      ...doc.data(),
+    }));
 
-    // Sort in memory instead
-    return tracks.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    console.log("Retrieved tracks:", tracks);
+
+    // Sort in memory
+    return tracks.sort((a, b) => {
+      const dateA =
+        a.createdAt instanceof Timestamp
+          ? a.createdAt.toDate()
+          : new Date(a.createdAt);
+      const dateB =
+        b.createdAt instanceof Timestamp
+          ? b.createdAt.toDate()
+          : new Date(b.createdAt);
+      return dateB.getTime() - dateA.getTime();
+    });
   } catch (error) {
     console.error("Error getting user tracks:", error);
     throw error;
@@ -193,4 +259,69 @@ export async function getDetailedAnalysis(
   }
 
   return trackData;
+}
+
+export async function loadTrackDetails(trackId: string) {
+  try {
+    console.log("Loading track:", trackId);
+    const trackDoc = await getDoc(doc(db, "tracks", trackId));
+
+    if (!trackDoc.exists()) {
+      console.error("Track document not found:", trackId);
+      throw new Error("Track not found");
+    }
+
+    const trackData = trackDoc.data();
+    console.log("Track data loaded:", trackData);
+
+    // Ensure the track has an ID
+    const track = {
+      id: trackDoc.id,
+      ...trackData,
+      // Ensure all required fields have default values
+      analysis: {
+        bpm: trackData.analysis?.bpm || 120,
+        averageEnergy: trackData.analysis?.averageEnergy || 0,
+        averageLoudness: trackData.analysis?.averageLoudness || 0,
+        spectralCentroid: trackData.analysis?.spectralCentroid || 0,
+        spectralRolloff: trackData.analysis?.spectralRolloff || 0,
+        spectralFlatness: trackData.analysis?.spectralFlatness || 0,
+        dynamics: {
+          peak: trackData.analysis?.dynamics?.peak || 0,
+          dynamicRange: trackData.analysis?.dynamics?.dynamicRange || 0,
+        },
+        sections: trackData.analysis?.sections || [],
+      },
+      aiFeedback: {
+        genre: trackData.aiFeedback?.genre || "Unknown",
+        subgenres: trackData.aiFeedback?.subgenres || [],
+        mood: trackData.aiFeedback?.mood || "Unknown",
+        moodTags: trackData.aiFeedback?.moodTags || [],
+        style: trackData.aiFeedback?.style || "Unknown",
+        productionQuality: {
+          strengths: trackData.aiFeedback?.productionQuality?.strengths || [],
+          weaknesses: trackData.aiFeedback?.productionQuality?.weaknesses || [],
+        },
+        technicalFeedback: {
+          mixing:
+            trackData.aiFeedback?.technicalFeedback?.mixing ||
+            "No feedback available",
+          arrangement:
+            trackData.aiFeedback?.technicalFeedback?.arrangement ||
+            "No feedback available",
+          sound_design:
+            trackData.aiFeedback?.technicalFeedback?.sound_design ||
+            "No feedback available",
+        },
+        notableElements: trackData.aiFeedback?.notableElements || [],
+        character:
+          trackData.aiFeedback?.character || "No description available",
+      },
+    };
+
+    return track;
+  } catch (error) {
+    console.error("Error loading track details:", error);
+    throw error;
+  }
 }
