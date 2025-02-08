@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { loadTrackDetails } from "@/lib/db";
 import { formatDistanceToNow } from "date-fns";
@@ -10,7 +10,8 @@ import DAW from "@/components/DAW";
 import LyricAssistant from "@/components/LyricAssistant";
 import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
 import LyricsDisplay from "@/components/LyricsDisplay";
-
+import MintNFTButton from "@/components/MintNFTButton";
+import WaveBackground from "@/components/WaveBackground";
 export default function TrackDetails() {
   const params = useParams();
   const [track, setTrack] = useState<any>(null);
@@ -21,6 +22,8 @@ export default function TrackDetails() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [lyrics, setLyrics] = useState<any[]>([]);
+  const dawRef = useRef<{ exportAudio: () => Promise<Blob> }>(null);
+  const [audioBuffer, setAudioBuffer] = useState<ArrayBuffer | null>(null);
 
   useEffect(() => {
     const fetchTrack = async () => {
@@ -50,6 +53,24 @@ export default function TrackDetails() {
 
     fetchTrack();
   }, [params]);
+
+  useEffect(() => {
+    const fetchAudio = async () => {
+      if (track?.ipfsUrl) {
+        try {
+          console.log("Fetching audio from:", track.ipfsUrl);
+          const response = await fetch(track.ipfsUrl);
+          const buffer = await response.arrayBuffer();
+          setAudioBuffer(buffer);
+          console.log("Audio buffer loaded successfully");
+        } catch (error) {
+          console.error("Error fetching audio:", error);
+        }
+      }
+    };
+
+    fetchAudio();
+  }, [track?.ipfsUrl]);
 
   const handlePlaybackStateChange = (
     playing: boolean,
@@ -82,6 +103,20 @@ export default function TrackDetails() {
     } catch (error) {
       console.error("Error formatting date:", error);
       return "";
+    }
+  };
+
+  // Function to export current track state with changes
+  const exportCurrentTrack = async () => {
+    try {
+      // Get the current audio state from DAW component
+      // This will include any effects and changes made
+      const audioBlob = await dawRef.current?.exportAudio();
+      if (audioBlob) {
+        setAudioBuffer(await audioBlob.arrayBuffer());
+      }
+    } catch (error) {
+      console.error("Error exporting track:", error);
     }
   };
 
@@ -121,18 +156,49 @@ export default function TrackDetails() {
   const { detailed } = track.aiFeedback;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      <div className="pt-24 p-8">
+      <WaveBackground />
+      <div className="flex-1 pt-24 p-8">
         <div className="max-w-7xl mx-auto">
           {/* Track Title and Basic Info */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-primary mb-2">
-              {track.fileName}
-            </h1>
-            <p className="text-gray-400">
-              Uploaded {formatDate(track.createdAt)}
-            </p>
+          <div className="mb-8 flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-primary mb-2">
+                {track?.fileName}
+              </h1>
+              <p className="text-gray-400">
+                Uploaded {formatDate(track?.createdAt)}
+              </p>
+            </div>
+
+            {/* Add MintNFTButton with debug info */}
+            <div>
+              {!track && (
+                <p className="text-sm text-gray-400">Track data not loaded</p>
+              )}
+              {track && !audioBuffer && (
+                <p className="text-sm text-gray-400">Loading audio...</p>
+              )}
+              {track && audioBuffer && (
+                <MintNFTButton
+                  audioFile={
+                    new File([audioBuffer], track.fileName, {
+                      type: "audio/mpeg",
+                    })
+                  }
+                  trackMetadata={{
+                    name: track.fileName,
+                    description: `${
+                      track.aiFeedback?.genre || "Unknown"
+                    } track at ${track.analysis?.bpm || 120} BPM`,
+                    genre: track.aiFeedback?.genre || "Unknown",
+                    bpm: track.analysis?.bpm || 120,
+                    duration: track.analysis?.duration || 0,
+                  }}
+                />
+              )}
+            </div>
           </div>
 
           {/* Collapsible Analysis Section */}
@@ -291,48 +357,100 @@ export default function TrackDetails() {
           </div>
 
           {/* DAW and Lyrics Side by Side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[600px]">
-            <div className="bg-background-light rounded-xl border border-primary/20 p-6 h-full">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <div className="bg-background-light rounded-xl border border-primary/20 p-6">
               <h2 className="text-xl font-bold text-primary mb-4">
                 Live Editor
               </h2>
-              {track && (
-                <DAW
-                  audioUrl={track.ipfsUrl}
-                  bpm={track.analysis?.bpm || 120}
-                  genre={track.aiFeedback?.genre || "Unknown"}
-                  mood={track.aiFeedback?.mood || "Unknown"}
-                  onPlaybackStateChange={handlePlaybackStateChange}
-                />
-              )}
+              <div className="h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-transparent hover:scrollbar-thumb-purple-400">
+                {track && (
+                  <DAW
+                    ref={dawRef}
+                    audioUrl={track.ipfsUrl}
+                    bpm={track.analysis?.bpm || 120}
+                    genre={track.aiFeedback?.genre || "Unknown"}
+                    mood={track.aiFeedback?.mood || "Unknown"}
+                    onPlaybackStateChange={handlePlaybackStateChange}
+                  />
+                )}
+              </div>
             </div>
 
-            <div className="bg-background-light rounded-xl border border-primary/20 p-6 h-full">
-              {track && (
-                <LyricAssistant
-                  bpm={track.analysis?.bpm || 120}
-                  genre={track.aiFeedback?.genre || "Unknown"}
-                  mood={track.aiFeedback?.mood || "Unknown"}
-                  isPlaying={isPlaying}
-                  currentTime={currentTime}
-                  duration={duration}
-                  songId={track.id}
+            <div className="bg-background-light rounded-xl border border-primary/20 p-6">
+              <div className="h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-transparent hover:scrollbar-thumb-purple-400">
+                {track && (
+                  <LyricAssistant
+                    bpm={track.analysis?.bpm || 120}
+                    genre={track.aiFeedback?.genre || "Unknown"}
+                    mood={track.aiFeedback?.mood || "Unknown"}
+                    isPlaying={isPlaying}
+                    currentTime={currentTime}
+                    duration={duration}
+                    songId={track.id}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Lyrics Display Section */}
+          {lyrics.length > 0 && (
+            <div className="mb-8">
+              <LyricsDisplay
+                lyrics={lyrics}
+                isPlaying={isPlaying}
+                currentTime={currentTime}
+                duration={duration}
+                bpm={track.analysis?.bpm || 120}
+                mood={track.aiFeedback?.mood || "Unknown"}
+                genre={track.aiFeedback?.genre || "Unknown"}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* NFT Publishing Section as Footer */}
+      <div className="w-full bg-background-light border-t border-primary/20 mt-auto">
+        <div className="max-w-7xl mx-auto p-8">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <h2 className="text-2xl font-bold text-primary">
+              Ready to Publish?
+            </h2>
+            <p className="text-gray-400 text-center max-w-2xl">
+              Export your track with all current changes and publish it as an
+              NFT on the blockchain. This will create a permanent record of your
+              musical creation.
+            </p>
+
+            <div className="flex flex-col items-center space-y-4">
+              <button
+                onClick={exportCurrentTrack}
+                className="px-8 py-3 bg-secondary hover:bg-secondary-dark text-white rounded-lg transition-colors"
+              >
+                Export Current Version
+              </button>
+
+              {track && audioBuffer && (
+                <MintNFTButton
+                  audioFile={
+                    new File([audioBuffer], track.fileName, {
+                      type: "audio/mpeg",
+                    })
+                  }
+                  trackMetadata={{
+                    name: track.fileName,
+                    description: `${
+                      track.aiFeedback?.genre || "Unknown"
+                    } track at ${track.analysis?.bpm || 120} BPM`,
+                    genre: track.aiFeedback?.genre || "Unknown",
+                    bpm: track.analysis?.bpm || 120,
+                    duration: track.analysis?.duration || 0,
+                  }}
                 />
               )}
             </div>
           </div>
-
-          {lyrics.length > 0 && (
-            <LyricsDisplay
-              lyrics={lyrics}
-              isPlaying={isPlaying}
-              currentTime={currentTime}
-              duration={duration}
-              bpm={track.analysis?.bpm || 120}
-              mood={track.aiFeedback?.mood || "Unknown"}
-              genre={track.aiFeedback?.genre || "Unknown"}
-            />
-          )}
         </div>
       </div>
     </div>

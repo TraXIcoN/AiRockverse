@@ -1,118 +1,131 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import Navbar from "@/components/NavBar";
-import FileUpload from "@/components/FileUpload";
+import WaveBackground from "@/components/WaveBackground";
+import Link from "next/link";
 import TrackHistory from "@/components/TrackHistory";
 
-export default function DashboardPage() {
-  const { user, userData, loading, error } = useAuth();
-  const router = useRouter();
-  const [showUpload, setShowUpload] = useState(false);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/");
-    }
-  }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-primary">Loading...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-red-500">{error}</div>
-      </div>
-    );
-  }
-
-  if (!user) return null;
+export default function Dashboard() {
+  const { user, userData } = useAuth();
+  const username =
+    userData?.displayName || user?.email?.split("@")[0] || "Producer";
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <div className="relative min-h-screen mt-24">
+      <WaveBackground />
+      <main className="relative z-10 p-8">
+        {/* Hero Section with Stats */}
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-center mb-16">
+          {/* Left Side - Hero Text */}
+          <div>
+            <h1 className="text-6xl font-bold bg-gradient-to-r from-primary-light to-primary bg-clip-text text-transparent mb-4">
+              Hi, {username}!
+            </h1>
+            <p className="text-xl text-gray-400 max-w-lg">
+              Track your progress and improve your beats with AI-powered
+              analysis
+            </p>
+          </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24">
-        {/* Centered Welcome Message */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-light to-primary bg-clip-text text-transparent">
-            Hi, {userData?.displayName || "Producer"}!
-          </h1>
-          <p className="text-gray-400 mt-2">
-            Track your progress and improve your beats
-          </p>
-        </div>
+          {/* Right Side - Stats Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Tracks Analyzed */}
+            <div className="bg-background-light p-6 rounded-2xl border border-primary/20 hover:border-primary/40 transition-all">
+              <h3 className="text-gray-400 mb-2">Tracks Analyzed</h3>
+              <p className="text-4xl font-bold text-primary-light">0</p>
+            </div>
 
-        {showUpload ? (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-background-light rounded-lg p-6 max-w-3xl w-full mx-4 relative">
-              <button
-                onClick={() => setShowUpload(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-              >
-                ✕
-              </button>
-              <h2 className="text-2xl font-bold text-primary mb-6 text-center">
-                Upload Your Track
-              </h2>
-              <FileUpload />
+            {/* Average Score */}
+            <div className="bg-background-light p-6 rounded-2xl border border-primary/20 hover:border-primary/40 transition-all">
+              <h3 className="text-gray-400 mb-2">Average Score</h3>
+              <p className="text-4xl font-bold text-primary-light">N/A</p>
+            </div>
+
+            {/* NFTs Earned */}
+            <div className="bg-background-light p-6 rounded-2xl border border-primary/20 hover:border-primary/40 transition-all">
+              <h3 className="text-gray-400 mb-2">NFTs Earned</h3>
+              <p className="text-4xl font-bold text-primary-light">0</p>
             </div>
           </div>
-        ) : null}
-
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {[
-            { label: "Tracks Analyzed", value: "0" },
-            { label: "Average Score", value: "N/A" },
-            { label: "NFTs Earned", value: "0" },
-          ].map((stat, index) => (
-            <div
-              key={index}
-              className="bg-background-light p-6 rounded-xl border border-primary/20"
-            >
-              <h3 className="text-gray-400 mb-2">{stat.label}</h3>
-              <p className="text-3xl font-bold text-primary">{stat.value}</p>
-            </div>
-          ))}
         </div>
 
         {/* Upload Section */}
-        <div className="bg-background-light p-6 rounded-xl border border-primary/20 mb-8">
-          <h2 className="text-xl font-bold text-primary mb-4">
-            Upload New Track
-          </h2>
-          <div
-            onClick={() => setShowUpload(true)}
-            className="flex items-center justify-center h-40 border-2 border-dashed border-primary/20 rounded-lg cursor-pointer hover:border-primary/40 transition-colors"
-          >
-            <div className="text-center">
-              <p className="text-gray-400 mb-2">
-                Click here to upload your audio file
-              </p>
-              <button className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-center mb-16">
+          {/* Left Side - Upload Button */}
+          <div className="flex items-center justify-center h-full">
+            <button
+              className="w-64 py-16 rounded-full bg-primary/20 hover:bg-primary/30 
+                         border-2 border-dashed border-primary/40 hover:border-primary/60 
+                         flex flex-col items-center justify-center transition-all
+                         group hover:scale-105 rounded-[40px]"
+            >
+              <svg
+                className="w-24 h-24 text-primary-light group-hover:scale-110 transition-transform"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0 M12 8l0 8 M8 12l4 -4l4 4"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+              <span className="mt-4 text-xl text-primary-light font-medium">
                 Upload Track
-              </button>
+              </span>
+            </button>
+          </div>
+
+          {/* Right Side - Upload Instructions */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-primary-light">
+              How it works
+            </h2>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary-light">
+                  1
+                </span>
+                <p className="text-gray-400">
+                  Drop your audio file or click to upload (MP3, WAV formats
+                  supported)
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary-light">
+                  2
+                </span>
+                <p className="text-gray-400">
+                  Our AI analyzes your track's key features, including tempo,
+                  energy, and structure
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary-light">
+                  3
+                </span>
+                <p className="text-gray-400">
+                  Get detailed feedback and suggestions to improve your
+                  production
+                </p>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Recent Activity */}
-        <div className="bg-background-light p-6 rounded-xl border border-primary/20">
-          <h2 className="text-xl font-bold text-primary mb-4">
-            Recent Activity
-          </h2>
-          <TrackHistory />
+        {/* Track History Section */}
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-background-light p-6 rounded-xl border border-primary/20">
+            <h2 className="text-xl font-bold text-primary mb-4">
+              Recent Activity
+            </h2>
+            <TrackHistory />
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

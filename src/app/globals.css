@@ -8,6 +8,13 @@
   --background-end-rgb: 0, 0, 0;
 }
 
+/* src/app/globals.css */
+:root {
+  --grid-size: 40px;
+  --wave-speed: 4s;
+  --color-speed: 8s;
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-start-rgb));

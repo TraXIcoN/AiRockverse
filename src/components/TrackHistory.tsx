@@ -11,6 +11,7 @@ export default function TrackHistory() {
   const [tracks, setTracks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     const loadTracks = async () => {
@@ -78,85 +79,138 @@ export default function TrackHistory() {
     );
   }
 
+  const TrackItem = ({ track }: { track: any }) => (
+    <div className="border border-primary/20 rounded-lg p-4 mb-4 bg-background/50">
+      <div className="flex justify-between items-start mb-4">
+        <h3 className="text-primary-light text-lg">{track.fileName}</h3>
+        <span className="text-sm text-gray-400">
+          {formatDate(track.createdAt)}
+        </span>
+      </div>
+      <div className="grid grid-cols-4 gap-4 mb-4">
+        <div>
+          <p className="text-gray-400">BPM</p>
+          <p className="text-primary-light">
+            {formatValue(track.analysis?.bpm)}
+          </p>
+        </div>
+        <div>
+          <p className="text-gray-400">Energy</p>
+          <p className="text-primary-light">
+            {formatValue(track.analysis?.averageEnergy)}
+          </p>
+        </div>
+        <div>
+          <p className="text-gray-400">Loudness</p>
+          <p className="text-primary-light">
+            {formatValue(track.analysis?.averageLoudness)}
+          </p>
+        </div>
+        <div>
+          <p className="text-gray-400">Sections</p>
+          <p className="text-primary-light">
+            {track.analysis?.sections?.length || 0}
+          </p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div>
+          <span className="text-gray-400">Genre: </span>
+          <span className="text-primary-light">
+            {track.aiFeedback?.genre || "Unknown"}
+          </span>
+        </div>
+        <div>
+          <span className="text-gray-400">Mood: </span>
+          <span className="text-primary-light">
+            {track.aiFeedback?.mood || "Unknown"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
-      {tracks.map((track, index) => {
-        // Debug log to check track data
-        console.log("Track in list:", track);
+    <div>
+      {/* Always show the most recent track */}
+      <TrackItem track={tracks[0]} />
 
-        if (!track.id) {
-          console.warn("Track missing ID:", track);
-          return null;
-        }
-
-        return (
-          <Link
-            key={track.id}
-            href={`/track/${track.id}`}
-            className="block hover:bg-background-light transition-colors duration-200"
+      {/* Collapsible section for two more tracks */}
+      {tracks.length > 1 && (
+        <div>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-primary-light hover:text-primary transition-colors mb-4 flex items-center gap-2"
           >
-            <div className="border border-primary/20 rounded-lg p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-primary">
-                  {track.fileName}
-                </h3>
-                <span className="text-sm text-gray-400">
-                  {track.createdAt &&
-                    formatDistanceToNow(
-                      typeof track.createdAt === "string"
-                        ? new Date(track.createdAt)
-                        : track.createdAt instanceof Timestamp
-                        ? track.createdAt.toDate()
-                        : new Date(),
-                      { addSuffix: true }
-                    )}
-                </span>
-              </div>
+            {isExpanded ? (
+              <>
+                <span>Show Less</span>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 15l7-7 7 7"
+                  />
+                </svg>
+              </>
+            ) : (
+              <>
+                <span>Show More</span>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </>
+            )}
+          </button>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <p className="text-sm text-gray-400">BPM</p>
-                  <p className="text-primary">
-                    {formatValue(track.analysis?.bpm)}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-400">Energy</p>
-                  <p className="text-primary">
-                    {formatValue(track.analysis?.averageEnergy)}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-400">Loudness</p>
-                  <p className="text-primary">
-                    {formatValue(track.analysis?.averageLoudness)}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-400">Sections</p>
-                  <p className="text-primary">
-                    {track.analysis?.sections?.length || 0}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <p className="text-sm text-gray-400">Genre</p>
-                <p className="text-primary">
-                  {track.aiFeedback?.genre || "Unknown"}
-                </p>
-              </div>
-
-              <div className="mt-2">
-                <p className="text-sm text-gray-400">Mood</p>
-                <p className="text-primary">
-                  {track.aiFeedback?.mood || "Unknown"}
-                </p>
-              </div>
+          {isExpanded && (
+            <div className="space-y-4">
+              {tracks.slice(1, 3).map((track, index) => (
+                <TrackItem key={index} track={track} />
+              ))}
             </div>
-          </Link>
-        );
-      })}
+          )}
+        </div>
+      )}
+
+      {/* Link to archive */}
+      <div className="mt-6 text-center">
+        <Link
+          href="/archive"
+          className="text-primary-light hover:text-primary transition-colors inline-flex items-center gap-2"
+        >
+          View All Tracks
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 7l5 5m0 0l-5 5m5-5H6"
+            />
+          </svg>
+        </Link>
+      </div>
     </div>
   );
 }

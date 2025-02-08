@@ -10,9 +10,9 @@ const config: Config = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: "#9333ea", // Purple 600
-          dark: "#7e22ce", // Purple 700
-          light: "#a855f7", // Purple 500
+          DEFAULT: "#8B5CF6", // Violet-500 (brighter than previous)
+          dark: "#7C3AED", // Violet-600
+          light: "#A78BFA", // Violet-400 (much brighter)
         },
         background: {
           DEFAULT: "#000000",
@@ -21,6 +21,6 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [require("tailwind-scrollbar")],
 };
 export default config;
