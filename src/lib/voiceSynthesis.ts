@@ -2,9 +2,10 @@ export class VoiceSynthesizer {
   private bpm: number;
   private mood: string;
   private genre: string;
-  private audioContext: AudioContext;
-  private currentSource: AudioBufferSourceNode | null;
   private apiKey: string;
+  private audioContext: AudioContext;
+  private currentSource: AudioBufferSourceNode | null = null;
+  private readonly MAX_CONTENT_LENGTH = 190; // Content length without ## markers
 
   constructor({
     bpm,
@@ -18,116 +19,74 @@ export class VoiceSynthesizer {
     this.bpm = bpm;
     this.mood = mood;
     this.genre = genre;
+    this.apiKey = process.env.NEXT_PUBLIC_AIML_API_KEY!;
     this.audioContext = new AudioContext();
     this.currentSource = null;
-    this.apiKey = process.env.NEXT_PUBLIC_SUNO_API_KEY!;
   }
 
-  public async speakLine(text: string): Promise<void> {
+  stop() {
+    if (this.currentSource) {
+      this.currentSource.stop();
+      this.currentSource.disconnect();
+      this.currentSource = null;
+    }
+  }
+
+  async speakLine(
+    text: string,
+    theme: string,
+    keywords: string
+  ): Promise<Blob> {
     try {
-      this.stop();
+      const url = "https://api.aimlapi.com/v2/generate/audio/minimax/generate";
 
-      // Prepare the prompt based on mood and genre
-      const prompt = this.createMusicPrompt(text);
+      // Format lyrics with proper structure and length limit
+      const content = text.slice(0, this.MAX_CONTENT_LENGTH).trim();
 
-      // Call Suno API
-      const response = await fetch("https://api.suno.ai/v1/generate", {
+      const formattedLyrics = `##\n${content}\n##`;
+
+      console.log("Lyrics length:", formattedLyrics.length); // Should be ~184 chars
+
+      const payload = {
+        refer_voice: "vocal-2025010100000000-a0AAAaaa",
+        refer_instrumental: "instrumental-2025010100000000-Aaa0aAaA",
+        lyrics: formattedLyrics,
+        model: "music-01",
+        parameters: {
+          bpm: this.bpm,
+          mood: this.mood.toLowerCase(),
+          genre: this.genre.toLowerCase(),
+          theme,
+          keywords: keywords.join(", "),
+        },
+      };
+
+      const response = await fetch(url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+          Accept: "application/json",
         },
-        body: JSON.stringify({
-          text: prompt,
-          tempo: this.bpm,
-          duration: 8, // Adjust based on line length
-          model: "bark", // or other available models
-          settings: {
-            mood: this.mood.toLowerCase(),
-            genre: this.genre.toLowerCase(),
-          },
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        throw new Error(`Suno API error: ${response.statusText}`);
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
+        throw new Error(
+          `Voice generation failed (${response.status}): ${JSON.stringify(
+            errorData
+          )}`
+        );
       }
 
-      const audioData = await response.arrayBuffer();
-      const audioBuffer = await this.audioContext.decodeAudioData(audioData);
-
-      // Create and configure source
-      this.currentSource = this.audioContext.createBufferSource();
-      this.currentSource.buffer = audioBuffer;
-
-      // Add effects
-      const effects = this.createEffects();
-      let lastNode: AudioNode = this.currentSource;
-
-      effects.forEach((effect) => {
-        lastNode.connect(effect);
-        lastNode = effect;
-      });
-
-      lastNode.connect(this.audioContext.destination);
-
-      // Play the audio
-      this.currentSource.start(0);
-
-      return new Promise((resolve) => {
-        if (this.currentSource) {
-          this.currentSource.onended = () => resolve();
-        }
-      });
+      const data = await response.json();
+      const audioBuffer = Buffer.from(data.data.audio, "hex");
+      return new Blob([audioBuffer], { type: "audio/mpeg" });
     } catch (error) {
-      console.error("Error generating speech:", error);
+      console.error("Voice synthesis error:", error);
       throw error;
-    }
-  }
-
-  private createMusicPrompt(text: string): string {
-    // Create a musical context based on mood and genre
-    const moodContext = {
-      aggressive: "Sing with power and intensity",
-      dreamy: "Sing with ethereal, floating quality",
-      melancholic: "Sing with emotional depth and sadness",
-      romantic: "Sing with warmth and passion",
-      energetic: "Sing with high energy and excitement",
-      mysterious: "Sing with intrigue and suspense",
-    };
-
-    const genreStyle = {
-      electronic: "with electronic vocal effects",
-      rock: "with rock vocal style",
-      jazz: "with jazz phrasing",
-      classical: "with classical vocal technique",
-    };
-
-    const moodInstruction =
-      moodContext[this.mood.toLowerCase()] || "Sing naturally";
-    const styleInstruction = genreStyle[this.genre.toLowerCase()] || "";
-
-    return `${moodInstruction} ${styleInstruction}: ${text}`;
-  }
-
-  private createEffects(): AudioNode[] {
-    const effects: AudioNode[] = [];
-
-    // Add genre-specific effects
-    if (this.genre.toLowerCase() === "electronic") {
-      const filter = this.audioContext.createBiquadFilter();
-      filter.type = "highpass";
-      filter.frequency.value = 800;
-      effects.push(filter);
-    }
-
-    return effects;
-  }
-
-  public stop() {
-    if (this.currentSource) {
-      this.currentSource.stop();
-      this.currentSource = null;
     }
   }
 }

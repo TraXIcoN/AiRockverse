@@ -36,7 +36,17 @@ export default function LyricAssistant({
   const [selectedMood, setSelectedMood] = useState(mood || "");
   const [isVoicePlaying, setIsVoicePlaying] = useState(false);
   const synthRef = useRef<VoiceSynthesizer | null>(null);
+  const [storyDescription, setStoryDescription] = useState("");
+  const [keywords, setKeywords] = useState<string[]>([]);
   const currentLineRef = useRef<number>(-1);
+  const [sections, setSections] = useState([
+    { name: "Intro", start: "0", end: "15", description: "" },
+    { name: "Verse 1", start: "15", end: "45", description: "" },
+    { name: "Chorus", start: "45", end: "75", description: "" },
+    { name: "Verse 2", start: "75", end: "105", description: "" },
+    { name: "Bridge", start: "105", end: "120", description: "" },
+    { name: "Outro", start: "120", end: "135", description: "" },
+  ]);
 
   const moodOptions = [
     "Melancholic",
@@ -51,10 +61,16 @@ export default function LyricAssistant({
     "Peaceful",
   ];
 
+  const handleSectionChange = (index: number, field: string, value: string) => {
+    const newSections = [...sections];
+    newSections[index] = { ...newSections[index], [field]: value };
+    setSections(newSections);
+  };
+
   const generateLyrics = async () => {
     setLoading(true);
     try {
-      const prompt = `Write 8 lines of ${selectedMood.toLowerCase()} lyrics about ${theme} in the style of ${genre} music. 
+      const prompt = `Write 8 lines of ${selectedMood.toLowerCase()} lyrics about ${theme} in the style of ${genre} music.
                      Make it rhythmic and suitable for a song with ${bpm} BPM.`;
 
       const completion = await openai.chat.completions.create({
@@ -113,11 +129,13 @@ export default function LyricAssistant({
           stopVoice();
           return;
         }
-
-        const line = lyrics[index];
-
+        const combinedLyrics = lyrics.map((line) => line.text).join("\n");
         try {
-          await synthRef.current?.speakLine(line.text);
+          await synthRef.current?.speakLine(
+            combinedLyrics,
+            selectedMood,
+            genre
+          );
           // Add slight pause between lines
           const pauseDuration = (60 / bpm) * 0.25; // Quarter beat pause
           setTimeout(() => {
@@ -183,6 +201,76 @@ export default function LyricAssistant({
               {option}
             </button>
           ))}
+        </div>
+
+        <div>
+          <label className="text-sm text-gray-400 mb-1 block">
+            Story/Concept
+          </label>
+          <textarea
+            value={storyDescription}
+            onChange={(e) => setStoryDescription(e.target.value)}
+            placeholder="Describe the story or concept behind your song"
+            className="w-full px-4 py-2 h-24 bg-background border border-primary/20 rounded-lg focus:outline-none focus:border-primary resize-none"
+          />
+        </div>
+
+        <div>
+          <label className="text-sm text-gray-400 mb-1 block">Keywords</label>
+          <input
+            type="text"
+            value={keywords.join(", ")}
+            onChange={(e) =>
+              setKeywords(e.target.value.split(",").map((k) => k.trim()))
+            }
+            placeholder="dark, industrial, cyberpunk, etc."
+            className="w-full px-4 py-2 bg-background border border-primary/20 rounded-lg focus:outline-none focus:border-primary"
+          />
+        </div>
+
+        <div>
+          <label className="text-sm text-gray-400 mb-1 block">
+            Song Structure
+          </label>
+          <div className="space-y-2">
+            {sections.map((section, index) => (
+              <div key={index} className="flex gap-2">
+                <input
+                  type="text"
+                  value={section.name}
+                  onChange={(e) =>
+                    handleSectionChange(index, "name", e.target.value)
+                  }
+                  className="w-24 px-2 py-1 bg-background border border-primary/20 rounded-lg"
+                />
+                <input
+                  type="number"
+                  value={section.start}
+                  onChange={(e) =>
+                    handleSectionChange(index, "start", e.target.value)
+                  }
+                  className="w-20 px-2 py-1 bg-background border border-primary/20 rounded-lg"
+                />
+                <input
+                  type="number"
+                  value={section.end}
+                  onChange={(e) =>
+                    handleSectionChange(index, "end", e.target.value)
+                  }
+                  className="w-20 px-2 py-1 bg-background border border-primary/20 rounded-lg"
+                />
+                <input
+                  type="text"
+                  value={section.description}
+                  onChange={(e) =>
+                    handleSectionChange(index, "description", e.target.value)
+                  }
+                  placeholder="Section description"
+                  className="flex-1 px-2 py-1 bg-background border border-primary/20 rounded-lg"
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         <button
