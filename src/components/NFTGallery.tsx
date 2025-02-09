@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { getUserNFTs } from "@/lib/nftContract";
-import NFTSaleHistory from "./NFTSaleHistory";
 import { ethers } from "ethers";
 import { contractABI } from "@/lib/contractABI";
 import { useAuth } from "@/context/AuthContext";
@@ -82,111 +81,119 @@ export default function NFTGallery() {
   }: {
     nft: NFT;
     isOwned?: boolean;
-  }) => (
-    <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-primary/30 transition-all duration-300">
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="text-primary text-xl font-medium">
-          {nft.name || "Untitled"}
-        </h3>
-      </div>
+  }) => {
+    // Function to convert IPFS URL to HTTP gateway URL
+    const getPlayableUrl = (url: string) => {
+      if (!url) return "";
+      // Convert IPFS URL to HTTP gateway URL
+      if (url.startsWith("ipfs://")) {
+        return url.replace("ipfs://", "https://gateway.pinata.cloud/ipfs/");
+      }
+      return url;
+    };
 
-      {nft.audioUrl && (
-        <div className="mb-6">
-          <audio
-            controls
-            className="w-full rounded-lg bg-black/30"
-            src={nft.audioUrl}
-          >
-            Your browser does not support the audio element.
-          </audio>
+    return (
+      <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-primary/30 transition-all duration-300">
+        <div className="flex justify-between items-start mb-4">
+          <h3 className="text-primary text-xl font-medium">
+            {nft.name || "Untitled"}
+          </h3>
         </div>
-      )}
 
-      <p className="text-gray-400 mb-4 line-clamp-2">
-        {nft.description || "No description"}
-      </p>
+        {nft.audioUrl && (
+          <div className="mb-6">
+            <audio
+              controls
+              className="w-full rounded-lg bg-black/30"
+              src={getPlayableUrl(nft.audioUrl)}
+            >
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        )}
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        {nft.properties && (
-          <>
-            {nft.properties.genre && (
-              <div className="bg-black/30 p-3 rounded-lg">
-                <p className="text-gray-400 text-sm">Genre</p>
-                <p className="text-primary-light">{nft.properties.genre}</p>
-              </div>
-            )}
-            {nft.properties.bpm && (
-              <div className="bg-black/30 p-3 rounded-lg">
-                <p className="text-gray-400 text-sm">BPM</p>
-                <p className="text-primary-light">{nft.properties.bpm}</p>
-              </div>
-            )}
-          </>
+        <p className="text-gray-400 mb-4 line-clamp-2">
+          {nft.description || "No description"}
+        </p>
+
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          {nft.properties && (
+            <>
+              {nft.properties.genre && (
+                <div className="bg-black/30 p-3 rounded-lg">
+                  <p className="text-gray-400 text-sm">Genre</p>
+                  <p className="text-primary-light">{nft.properties.genre}</p>
+                </div>
+              )}
+              {nft.properties.bpm && (
+                <div className="bg-black/30 p-3 rounded-lg">
+                  <p className="text-gray-400 text-sm">BPM</p>
+                  <p className="text-primary-light">{nft.properties.bpm}</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <div className="bg-black/20 px-4 py-2 rounded-lg">
+            <span className="text-gray-400 text-sm">Owner: </span>
+            <span className="text-primary-light text-sm">
+              {nft.owner
+                ? `${nft.owner.slice(0, 6)}...${nft.owner.slice(-4)}`
+                : "Unknown"}
+            </span>
+          </div>
+          <div className="bg-black/20 px-4 py-2 rounded-lg">
+            <span className="text-gray-400 text-sm">Token ID: </span>
+            <span className="text-primary-light text-sm">
+              {nft.tokenId || "N/A"}
+            </span>
+          </div>
+        </div>
+
+        {isOwned && (
+          <div className="mt-4 space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Price"
+                className="flex-1 p-2 rounded bg-black/30 border border-primary/20 text-white"
+                value={listingPrice}
+                onChange={(e) => setListingPrice(e.target.value)}
+              />
+              <select
+                className="p-2 rounded bg-black/30 border border-primary/20 text-white"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+              >
+                <option value="ETH">ETH</option>
+                <option value="MATIC">MATIC</option>
+                <option value="USDT">USDT</option>
+              </select>
+            </div>
+            <button
+              onClick={() => listForSale(nft)}
+              className="w-full bg-primary hover:bg-primary-dark text-white p-2 rounded transition-colors"
+            >
+              List for Sale
+            </button>
+          </div>
+        )}
+
+        {!isOwned && nft.price && (
+          <div className="mt-4 bg-black/20 px-4 py-2 rounded-lg">
+            <span className="text-gray-400 text-sm">Price: </span>
+            <span className="text-primary-light text-sm">
+              {nft.price} {nft.currency}
+            </span>
+          </div>
         )}
       </div>
-
-      <div className="space-y-2">
-        <div className="bg-black/20 px-4 py-2 rounded-lg">
-          <span className="text-gray-400 text-sm">Owner: </span>
-          <span className="text-primary-light text-sm">
-            {nft.owner
-              ? `${nft.owner.slice(0, 6)}...${nft.owner.slice(-4)}`
-              : "Unknown"}
-          </span>
-        </div>
-        <div className="bg-black/20 px-4 py-2 rounded-lg">
-          <span className="text-gray-400 text-sm">Token ID: </span>
-          <span className="text-primary-light text-sm">
-            {nft.tokenId || "N/A"}
-          </span>
-        </div>
-      </div>
-
-      {isOwned && (
-        <div className="mt-4 space-y-2">
-          <div className="flex gap-2">
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Price"
-              className="flex-1 p-2 rounded bg-black/30 border border-primary/20 text-white"
-              value={listingPrice}
-              onChange={(e) => setListingPrice(e.target.value)}
-            />
-            <select
-              className="p-2 rounded bg-black/30 border border-primary/20 text-white"
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-            >
-              <option value="ETH">ETH</option>
-              <option value="MATIC">MATIC</option>
-              <option value="USDT">USDT</option>
-            </select>
-          </div>
-          <button
-            onClick={() => listForSale(nft)}
-            className="w-full bg-primary hover:bg-primary-dark text-white p-2 rounded transition-colors"
-          >
-            List for Sale
-          </button>
-        </div>
-      )}
-
-      {!isOwned && nft.price && (
-        <div className="mt-4 bg-black/20 px-4 py-2 rounded-lg">
-          <span className="text-gray-400 text-sm">Price: </span>
-          <span className="text-primary-light text-sm">
-            {nft.price} {nft.currency}
-          </span>
-        </div>
-      )}
-
-      <div className="mt-4">
-        <NFTSaleHistory tokenId={nft.tokenId} />
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="p-6">

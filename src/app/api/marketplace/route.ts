@@ -9,12 +9,24 @@ export async function GET() {
     const listings = await Marketplace.find({ isListed: true }).sort({
       createdAt: -1,
     });
-    return NextResponse.json(listings);
+
+    // Ensure we're returning a proper JSON response
+    return new NextResponse(JSON.stringify(listings), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
   } catch (error) {
     console.error("Error fetching marketplace listings:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch marketplace listings" },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: "Failed to fetch marketplace listings" }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
   }
 }
@@ -33,9 +45,14 @@ export async function POST(req: Request) {
       !data.price ||
       !data.currency
     ) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
+      return new NextResponse(
+        JSON.stringify({ error: "Missing required fields" }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
@@ -51,12 +68,22 @@ export async function POST(req: Request) {
       properties: data.properties,
     });
 
-    return NextResponse.json(newListing, { status: 201 });
+    return new NextResponse(JSON.stringify(newListing), {
+      status: 201,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
   } catch (error) {
     console.error("Error creating marketplace listing:", error);
-    return NextResponse.json(
-      { error: "Failed to create marketplace listing" },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: "Failed to create marketplace listing" }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
   }
 }

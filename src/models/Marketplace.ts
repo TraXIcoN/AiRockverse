@@ -11,7 +11,10 @@ const MarketplaceSchema = new mongoose.Schema({
     required: true,
   },
   description: String,
-  audioUrl: String,
+  audioUrl: {
+    type: String,
+    required: true,
+  },
   owner: {
     type: String,
     required: true,
@@ -37,6 +40,10 @@ const MarketplaceSchema = new mongoose.Schema({
   isListed: {
     type: Boolean,
     default: true,
+  },
+  playCount: {
+    type: Number,
+    default: 0,
   },
 });
 

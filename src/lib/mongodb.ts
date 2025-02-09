@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
 
 if (!process.env.NEXT_PUBLIC_MONGODB_URI) {
-  throw new Error("Please add your MONGODB_URI to .env.local");
+  throw new Error("Please add your NEXT_PUBLIC_MONGODB_URI to .env.local");
 }
 
-const MONGODB_URI: string = process.env.MONGODB_URI;
+const MONGODB_URI: string = process.env.NEXT_PUBLIC_MONGODB_URI;
 
 let cached = global.mongoose;
 
