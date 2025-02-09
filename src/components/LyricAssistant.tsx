@@ -7,6 +7,7 @@ import { VoiceSynthesizer } from "@/lib/voiceSynthesis";
 import * as Tone from "tone";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 
 interface LyricAssistantProps {
   bpm: number;
@@ -65,6 +66,8 @@ export default function LyricAssistant({
     "Peaceful",
   ];
 
+  const router = useRouter();
+
   const handleSectionChange = (index: number, field: string, value: string) => {
     const newSections = [...sections];
     newSections[index] = { ...newSections[index], [field]: value };
@@ -106,40 +109,72 @@ export default function LyricAssistant({
   const generateLyrics = async () => {
     setLoading(true);
     try {
-      const prompt = `Write 8 lines of ${selectedMood.toLowerCase()} lyrics about ${theme} in the style of ${genre} music.
-                     Make it rhythmic and suitable for a song with ${bpm} BPM.`;
+      // First generate lyrics with OpenAI
+      const prompt = `Write lyrics for a ${genre} song with the following structure:
+        - Theme: ${theme}
+        - Mood: ${selectedMood}
+        - BPM: ${bpm}
+        
+        Include the following sections:
+        ${sections.map((s) => `- ${s.name}: ${s.description}`).join("\n")}
+        
+        Format the lyrics with section headers in brackets like [Verse], [Chorus], etc.
+        Use the keywords: ${keywords.join(", ")}
+        Story concept: ${storyDescription}`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4",
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
+        messages: [{ role: "user", content: prompt }],
       });
 
       const generatedText = completion.choices[0].message.content;
       if (!generatedText) throw new Error("No lyrics generated");
 
-      // Split into lines and remove empty lines
-      const lyricsArray = generatedText
-        .split("\n")
-        .filter((line) => line.trim().length > 0)
-        .slice(0, 8); // Ensure we only take 8 lines
-
-      const timePerLine = (60 / bpm) * 4; // 4 beats per line
-      const spaceBetweenLines = timePerLine * 0.5;
-
-      const timedLyrics = lyricsArray.map((text, index) => ({
-        text: text.replace(/^\d+\.\s*/, "").trim(), // Remove any numbering
-        startTime: index * (timePerLine + spaceBetweenLines),
-        endTime: index * (timePerLine + spaceBetweenLines) + timePerLine,
-      }));
-
+      // Parse the lyrics into timed sections
+      const lines = generatedText.split("\n").filter((line) => line.trim());
+      const timedLyrics = parseTimedLyrics(lines);
       setLyrics(timedLyrics);
 
-      // Initialize voice synthesizer after setting lyrics
+      // Generate audio with Suno API
+      const sunoResponse = await fetch(
+        "https://api.aimlapi.com/v2/generate/audio/suno-ai/clip",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_AIML_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: generatedText,
+            tags: `${genre} ${selectedMood.toLowerCase()}`,
+            title: theme,
+          }),
+        }
+      );
+
+      const { clip_ids } = await sunoResponse.json();
+
+      // Save everything to Firebase
+      if (songId) {
+        const docRef = doc(db, "lyrics", songId);
+        await setDoc(
+          docRef,
+          {
+            generatedLyrics: timedLyrics,
+            rawLyrics: generatedText,
+            clipIds: clip_ids,
+            theme,
+            keywords,
+            storyDescription,
+            mood: selectedMood,
+            sections,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
+
+      // Initialize voice synthesizer
       synthRef.current = new VoiceSynthesizer({
         bpm,
         mood: selectedMood,
@@ -151,6 +186,28 @@ export default function LyricAssistant({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to parse lyrics with timing
+  const parseTimedLyrics = (lines: string[]): LyricLine[] => {
+    const timedLyrics: LyricLine[] = [];
+    let currentTime = 0;
+    const timePerLine = (60 / bpm) * 4; // 4 beats per line
+    const spaceBetweenLines = timePerLine * 0.5;
+
+    lines.forEach((line) => {
+      // Skip section headers in brackets
+      if (!line.trim().match(/^\[.*\]$/)) {
+        timedLyrics.push({
+          text: line.trim(),
+          startTime: currentTime,
+          endTime: currentTime + timePerLine,
+        });
+        currentTime += timePerLine + spaceBetweenLines;
+      }
+    });
+
+    return timedLyrics;
   };
 
   const playVoice = async () => {
@@ -237,6 +294,12 @@ export default function LyricAssistant({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBattleRoyale = () => {
+    if (!lyrics.length || !songId) return;
+
+    router.push(`/battle-royale/${songId}`);
   };
 
   return (
@@ -344,7 +407,7 @@ export default function LyricAssistant({
         {/* Display Lyrics if they exist */}
         {lyrics.length > 0 && (
           <div
-            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden rounded-lg bg-background-dark/50 
+            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden rounded-lg bg-background-dark/50
                         scrollbar-thin scrollbar-thumb-primary scrollbar-track-background-light
                         hover:scrollbar-thumb-primary-dark transition-colors"
           >
@@ -380,7 +443,7 @@ export default function LyricAssistant({
       {/* Lyrics Display */}
       {lyrics.length > 0 && (
         <>
-          <div className="flex justify-center mb-4">
+          {/* <div className="flex justify-center mb-4">
             <button
               onClick={isVoicePlaying ? stopVoice : playVoice}
               className={`px-8 py-3 rounded-lg transition-colors text-lg font-semibold ${
@@ -391,7 +454,7 @@ export default function LyricAssistant({
             >
               {isVoicePlaying ? "Stop Voice" : "Play Voice"}
             </button>
-          </div>
+          </div> */}
 
           <div
             className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden rounded-lg bg-background-dark/50 
@@ -433,6 +496,24 @@ export default function LyricAssistant({
             </AnimatePresence>
           </div>
         </>
+      )}
+
+      {/* Add this after the lyrics display section */}
+      {lyrics.length > 0 && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={handleBattleRoyale}
+            className="px-8 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-red-600 
+                     text-white font-bold text-lg shadow-lg hover:shadow-xl 
+                     transform hover:scale-105 transition-all duration-200
+                     flex items-center gap-2"
+          >
+            <span>🎵 Battle Royale: Human vs AI</span>
+            <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
+              New!
+            </span>
+          </button>
+        </div>
       )}
     </div>
   );
