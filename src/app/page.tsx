@@ -11,6 +11,8 @@ import {
   FeedbackStickFigure,
   LevelUpStickFigure,
 } from "@/components/illustrations/StickFigures";
+import DancingMinions from "@/components/DancingMinions";
+import { motion } from "framer-motion";
 
 export default function Home() {
   const { user, loading, userData, signInWithGoogle } = useAuth();
@@ -24,16 +26,54 @@ export default function Home() {
   //   return <UsernameForm />;
   // }
 
+  const letterVariants = {
+    initial: { y: 100, opacity: 0 },
+    animate: (i: number) => ({
+      y: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.8,
+        delay: i * 0.1,
+        type: "spring",
+        stiffness: 100,
+        damping: 10,
+      },
+    }),
+  };
+
+  const titleVariants = {
+    initial: {
+      scale: 1,
+    },
+    animate: {
+      scale: [1, 1, 1.5, 0.8, 1],
+      rotate: [0, 0, 5, -5, 0],
+      transition: {
+        duration: 3,
+        times: [0, 0.4, 0.5, 0.6, 0.7],
+        ease: ["easeOut", "easeIn", "backOut", "easeOut"],
+      },
+    },
+  };
+
   return (
     <div className="relative min-h-screen">
       <WaveBackground />
+      <DancingMinions />
       <main className="relative z-10">
         {/* Hero Section */}
         <section className="relative h-screen flex items-center justify-center px-4">
           <div className="max-w-6xl mx-auto text-center">
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary-light to-primary bg-clip-text text-transparent">
-              GrooveBot
-            </h1>
+            <motion.div
+              variants={titleVariants}
+              initial="initial"
+              animate="animate"
+              className="inline-block"
+            >
+              <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary-light to-primary bg-clip-text text-transparent">
+                GrooveBot
+              </h1>
+            </motion.div>
             <p className="text-2xl md:text-3xl text-gray-300 mb-8">
               The Smartest DJ & Music Producer Coach
             </p>
