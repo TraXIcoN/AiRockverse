@@ -32,13 +32,15 @@ export default function MintNFTButton({
       const metadataURI = `ipfs://${metadataHash}`;
       const txHash = await mintNFT(metadataURI);
 
-      // Save minting info to your database
-      // ... implementation depends on your backend
+      // Wait for transaction confirmation
+      // await txHash.wait();
 
       alert("NFT minted successfully!");
     } catch (err) {
       console.error("Error minting NFT:", err);
-      setError("Failed to mint NFT. Please try again.");
+      setError(
+        typeof err === "string" ? err : "Failed to mint NFT. Please try again."
+      );
     } finally {
       setIsMinting(false);
     }

@@ -39,7 +39,7 @@ export async function getUserNFTs() {
 
     const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
-    const address = await signer.getAddress();
+    const userAddress = await signer.getAddress();
 
     const contract = new ethers.Contract(
       CONTRACT_ADDRESS!,
@@ -47,104 +47,45 @@ export async function getUserNFTs() {
       signer
     );
 
-    // Get the current token ID counter
-    const currentId = await contract._tokenIds();
-    console.log("Current token ID:", currentId);
+    // Get token IDs owned by user
+    const tokenIds = await contract.tokensOfOwner(userAddress);
 
-    const userNFTs = [];
+    if (!tokenIds || tokenIds.length === 0) {
+      return []; // Return empty array if no tokens found
+    }
 
-    // Iterate through possible token IDs
-    for (let i = 1; i <= Number(currentId); i++) {
-      try {
-        // Check if token exists and get owner
-        const owner = await contract.ownerOf(i);
+    // Convert tokenIds to array and remove duplicates
+    const uniqueTokenIds = [
+      ...new Set(tokenIds.map((id) => id.toString())),
+    ].map((id) => BigInt(id));
 
-        // If the current user owns this token
-        if (owner.toLowerCase() === address.toLowerCase()) {
-          const tokenURI = await contract.tokenURI(i);
-          const price = await contract.getTokenPrice(i);
-          const isListed = await contract.isListed(i);
-
-          // Convert IPFS URI to HTTP URL
-          const httpURI = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
-
-          try {
-            // Fetch metadata
-            const response = await fetch(httpURI);
-            const metadata = await response.json();
-
-            userNFTs.push({
-              tokenId: i,
-              owner: owner,
-              tokenURI: tokenURI,
-              metadata: metadata,
-              price: price,
-              isListed: isListed,
-            });
-          } catch (metadataError) {
-            console.error(
-              `Error fetching metadata for token ${i}:`,
-              metadataError
-            );
-          }
+    // Get metadata for each unique token
+    const nfts = await Promise.all(
+      uniqueTokenIds.map(async (tokenId: bigint) => {
+        try {
+          const uri = await contract.tokenURI(tokenId);
+          // Remove ipfs:// prefix if present
+          const cleanUri = uri.replace("ipfs://", "https://ipfs.io/ipfs/");
+          const metadata = await fetch(cleanUri).then((r) => r.json());
+          return {
+            tokenId: tokenId.toString(),
+            ...metadata,
+            audioUrl: metadata.animation_url?.replace(
+              "ipfs://",
+              "https://ipfs.io/ipfs/"
+            ),
+          };
+        } catch (error) {
+          console.error(`Error fetching metadata for token ${tokenId}:`, error);
+          return null;
         }
-      } catch (tokenError) {
-        // Skip if token doesn't exist or other error
-        continue;
-      }
-    }
-
-    console.log("Found user NFTs:", userNFTs);
-    return userNFTs;
-  } catch (error) {
-    console.error("Error getting user NFTs:", error);
-    if (error instanceof Error) {
-      throw new Error(`Failed to fetch NFTs: ${error.message}`);
-    }
-    throw new Error("Failed to fetch NFTs");
-  }
-}
-
-// Helper function to get a single NFT's details
-export async function getNFTDetails(tokenId: number) {
-  try {
-    if (!window.ethereum) {
-      throw new Error("MetaMask is not installed");
-    }
-
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const contract = new ethers.Contract(
-      CONTRACT_ADDRESS!,
-      contractABI,
-      provider
+      })
     );
 
-    const tokenURI = await contract.tokenURI(tokenId);
-    const owner = await contract.ownerOf(tokenId);
-    const price = await contract.getTokenPrice(tokenId);
-    const isListed = await contract.isListed(tokenId);
-
-    // Fetch metadata
-    const httpURI = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
-    const response = await fetch(httpURI);
-    const metadata = await response.json();
-
-    return {
-      tokenId,
-      owner,
-      tokenURI,
-      metadata,
-      price,
-      isListed,
-    };
+    // Filter out any null results from failed metadata fetches
+    return nfts.filter((nft) => nft !== null);
   } catch (error) {
-    console.error("Error getting NFT details:", error);
-    throw new Error(`Failed to fetch NFT #${tokenId}`);
+    console.error("Error fetching NFTs:", error);
+    throw error;
   }
-}
-
-// Helper function to format IPFS URI to HTTP URL
-export function formatIPFSUrl(ipfsUrl: string) {
-  if (!ipfsUrl) return "";
-  return ipfsUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
 }
