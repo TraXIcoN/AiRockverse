@@ -5,34 +5,47 @@ import { getUserNFTs } from "@/lib/nftContract";
 import NFTSaleHistory from "./NFTSaleHistory";
 import { ethers } from "ethers";
 import { contractABI } from "@/lib/contractABI";
+import { useAuth } from "@/context/AuthContext";
+import { getMarketplaceNFTs, listNFTOnMarketplace } from "@/lib/marketplaceApi";
 
 interface NFT {
   tokenId: string;
   name: string;
   description: string;
   audioUrl?: string;
+  owner: string;
   properties?: {
     genre?: string;
     bpm?: number;
     duration?: number;
   };
+  price?: string;
+  currency?: string;
 }
 
 export default function NFTGallery() {
+  const [activeTab, setActiveTab] = useState<"owned" | "marketplace">("owned");
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [listingPrice, setListingPrice] = useState<string>("");
+  const { user } = useAuth();
+  const [currency, setCurrency] = useState<string>("ETH");
 
   useEffect(() => {
     loadNFTs();
-  }, []);
+  }, [activeTab, user]);
 
   const loadNFTs = async () => {
     try {
       setLoading(true);
-      const userNfts = await getUserNFTs();
-      setNfts(userNfts);
+      if (activeTab === "owned" && user) {
+        const userNfts = await getUserNFTs();
+        setNfts(userNfts);
+      } else {
+        const marketplaceNfts = await getMarketplaceNFTs();
+        setNfts(marketplaceNfts);
+      }
     } catch (err) {
       setError("Failed to load NFTs");
       console.error(err);
@@ -41,106 +54,193 @@ export default function NFTGallery() {
     }
   };
 
-  const listForSale = async (tokenId: string) => {
+  const listForSale = async (nft: NFT) => {
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!,
-        contractABI,
-        signer
-      );
+      if (!listingPrice) {
+        alert("Please enter a price");
+        return;
+      }
 
-      const price = ethers.parseEther(listingPrice);
-      const tx = await contract.listForSale(tokenId, price);
-      await tx.wait();
+      const marketplaceNFT = {
+        ...nft,
+        price: listingPrice,
+        currency: currency,
+      };
 
-      alert("NFT listed for sale!");
+      await listNFTOnMarketplace(marketplaceNFT);
+      alert("NFT listed on marketplace!");
+      loadNFTs();
     } catch (error) {
       console.error("Error listing NFT:", error);
+      alert("Failed to list NFT");
     }
   };
 
-  const buyNFT = async (tokenId: string, price: string) => {
-    try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!,
-        contractABI,
-        signer
-      );
+  const NFTCard = ({
+    nft,
+    isOwned = false,
+  }: {
+    nft: NFT;
+    isOwned?: boolean;
+  }) => (
+    <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-primary/30 transition-all duration-300">
+      <div className="flex justify-between items-start mb-4">
+        <h3 className="text-primary text-xl font-medium">
+          {nft.name || "Untitled"}
+        </h3>
+      </div>
 
-      const tx = await contract.buyToken(tokenId, {
-        value: ethers.parseEther(price),
-      });
-      await tx.wait();
+      {nft.audioUrl && (
+        <div className="mb-6">
+          <audio
+            controls
+            className="w-full rounded-lg bg-black/30"
+            src={nft.audioUrl}
+          >
+            Your browser does not support the audio element.
+          </audio>
+        </div>
+      )}
 
-      alert("NFT purchased successfully!");
-      loadNFTs(); // Refresh the NFT list
-    } catch (error) {
-      console.error("Error buying NFT:", error);
-    }
-  };
+      <p className="text-gray-400 mb-4 line-clamp-2">
+        {nft.description || "No description"}
+      </p>
 
-  if (loading) return <div>Loading your NFTs...</div>;
-  if (error) return <div className="text-red-500">{error}</div>;
-  if (nfts.length === 0) return <div>No NFTs found</div>;
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4 mt-24">
-      {nfts.map((nft) => (
-        <div
-          key={nft.tokenId}
-          className="bg-background-light rounded-lg p-4 border border-primary/20 hover:border-primary/40 transition-all"
-        >
-          <h3 className="text-xl font-bold text-primary mb-2">
-            {nft.name || "Untitled"}
-          </h3>
-          <p className="text-gray-400 mb-4">
-            {nft.description || "No description"}
-          </p>
-
-          {nft.audioUrl && (
-            <audio controls className="w-full mb-4" src={nft.audioUrl}>
-              Your browser does not support the audio element.
-            </audio>
-          )}
-
-          <div className="text-sm text-gray-500">
-            {nft.properties && (
-              <>
-                {nft.properties.genre && <p>Genre: {nft.properties.genre}</p>}
-                {nft.properties.bpm && <p>BPM: {nft.properties.bpm}</p>}
-                {nft.properties.duration && (
-                  <p>Duration: {nft.properties.duration}s</p>
-                )}
-              </>
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        {nft.properties && (
+          <>
+            {nft.properties.genre && (
+              <div className="bg-black/30 p-3 rounded-lg">
+                <p className="text-gray-400 text-sm">Genre</p>
+                <p className="text-primary-light">{nft.properties.genre}</p>
+              </div>
             )}
-            <p className="text-xs mt-2">Token ID: {nft.tokenId}</p>
-          </div>
+            {nft.properties.bpm && (
+              <div className="bg-black/30 p-3 rounded-lg">
+                <p className="text-gray-400 text-sm">BPM</p>
+                <p className="text-primary-light">{nft.properties.bpm}</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
-          <div className="mt-4 space-y-2">
+      <div className="space-y-2">
+        <div className="bg-black/20 px-4 py-2 rounded-lg">
+          <span className="text-gray-400 text-sm">Owner: </span>
+          <span className="text-primary-light text-sm">
+            {nft.owner
+              ? `${nft.owner.slice(0, 6)}...${nft.owner.slice(-4)}`
+              : "Unknown"}
+          </span>
+        </div>
+        <div className="bg-black/20 px-4 py-2 rounded-lg">
+          <span className="text-gray-400 text-sm">Token ID: </span>
+          <span className="text-primary-light text-sm">
+            {nft.tokenId || "N/A"}
+          </span>
+        </div>
+      </div>
+
+      {isOwned && (
+        <div className="mt-4 space-y-2">
+          <div className="flex gap-2">
             <input
               type="number"
               step="0.01"
               min="0"
-              placeholder="Price in ETH"
-              className="w-full p-2 rounded bg-background border border-primary/20 text-white"
+              placeholder="Price"
+              className="flex-1 p-2 rounded bg-black/30 border border-primary/20 text-white"
               value={listingPrice}
               onChange={(e) => setListingPrice(e.target.value)}
             />
-            <button
-              onClick={() => nft.tokenId && listForSale(nft.tokenId)}
-              className="w-full bg-primary hover:bg-primary-dark text-white p-2 rounded transition-colors"
+            <select
+              className="p-2 rounded bg-black/30 border border-primary/20 text-white"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
             >
-              List for Sale
-            </button>
+              <option value="ETH">ETH</option>
+              <option value="MATIC">MATIC</option>
+              <option value="USDT">USDT</option>
+            </select>
           </div>
-
-          <NFTSaleHistory tokenId={nft.tokenId} />
+          <button
+            onClick={() => listForSale(nft)}
+            className="w-full bg-primary hover:bg-primary-dark text-white p-2 rounded transition-colors"
+          >
+            List for Sale
+          </button>
         </div>
-      ))}
+      )}
+
+      {!isOwned && nft.price && (
+        <div className="mt-4 bg-black/20 px-4 py-2 rounded-lg">
+          <span className="text-gray-400 text-sm">Price: </span>
+          <span className="text-primary-light text-sm">
+            {nft.price} {nft.currency}
+          </span>
+        </div>
+      )}
+
+      <div className="mt-4">
+        <NFTSaleHistory tokenId={nft.tokenId} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="p-6">
+      {/* Tabs */}
+      <div className="flex gap-4 mb-6">
+        <button
+          onClick={() => setActiveTab("owned")}
+          className={`px-6 py-3 rounded-lg transition-all ${
+            activeTab === "owned"
+              ? "bg-primary text-white"
+              : "bg-black/30 text-gray-400 hover:text-primary"
+          }`}
+        >
+          My NFTs
+        </button>
+        <button
+          onClick={() => setActiveTab("marketplace")}
+          className={`px-6 py-3 rounded-lg transition-all ${
+            activeTab === "marketplace"
+              ? "bg-primary text-white"
+              : "bg-black/30 text-gray-400 hover:text-primary"
+          }`}
+        >
+          Marketplace
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      ) : error ? (
+        <div className="text-center py-8">
+          <p className="text-red-500">{error}</p>
+        </div>
+      ) : nfts.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-400">
+            {activeTab === "owned"
+              ? "You don't own any NFTs yet"
+              : "No NFTs found in the marketplace"}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {nfts.map((nft) => (
+            <NFTCard
+              key={nft.tokenId}
+              nft={nft}
+              isOwned={activeTab === "owned"}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
