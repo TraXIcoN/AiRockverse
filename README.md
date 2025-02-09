@@ -1,5 +1,66 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+# GrooveChain 🎵
+
+An AI-powered music creation and learning platform that helps aspiring musicians improve their skills through personalized feedback, NFT-based progress tracking, and an engaging battle royale mode.
+
+## 🌟 Features
+
+### AI Music Mentor
+
+- Real-time audio analysis using Meyda
+- Personalized feedback on beats and compositions
+- Progress tracking through NFT achievements
+- Genre and mood-based lyrics generation
+
+### Interactive DAW (Digital Audio Workstation)
+
+- Browser-based music creation
+- Real-time audio manipulation
+- Multiple track support
+- Intuitive interface for beginners
+
+### Battle Royale Mode
+
+- Human vs AI music competitions
+- Community voting system
+- Real-time performance feedback
+- Engaging gamification elements
+
+### NFT Integration
+
+- Publish music as NFTs
+- Proof of ownership
+- Monetization opportunities
+- Decentralized storage via Pinata
+
+## 🛠️ Tech Stack
+
+### Frontend
+
+- Next.js 14 with TypeScript
+- Tailwind CSS for styling
+- Framer Motion for animations
+- Web Audio API for sound processing
+
+### Backend & Storage
+
+- Firebase Authentication
+- MongoDB for transaction data
+- Pinata for IPFS storage
+- Smart Contracts (Ethereum)
+
+### AI & Analysis
+
+- Meyda for audio analysis
+- OpenAI API for lyrics generation
+- SUNO AI integration
+- Custom AI feedback system
+
+## 🚀 Getting Started
+
+1. Clone the repository:
+
 ## Getting Started
 
 First, run the development server:
