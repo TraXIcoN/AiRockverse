@@ -6,11 +6,76 @@ import Link from "next/link";
 import TrackHistory from "@/components/TrackHistory";
 import { useRouter } from "next/navigation";
 import FileUpload from "@/components/FileUpload";
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
+
 export default function Dashboard() {
   const { user, userData } = useAuth();
   const router = useRouter();
+  const [tracksCount, setTracksCount] = useState(0);
+  const [averageScore, setAverageScore] = useState<number | null>(null);
+  const [nftsCount, setNftsCount] = useState(0);
   const username =
     userData?.displayName || user?.email?.split("@")[0] || "Producer";
+
+  useEffect(() => {
+    const fetchTrackStats = async () => {
+      if (!user?.uid) return;
+
+      try {
+        const tracksRef = collection(db, "tracks");
+        const q = query(tracksRef, where("userId", "==", user.uid));
+        const querySnapshot = await getDocs(q);
+
+        // Track count
+        setTracksCount(querySnapshot.size);
+
+        // Calculate average score and NFT count
+        let totalScore = 0;
+        let nftCount = 0;
+
+        querySnapshot.forEach((doc) => {
+          const track = doc.data();
+
+          // Calculate score based on available metrics
+          const metrics = track.analysis || {};
+          const scoreFactors = [
+            metrics.quality || 0,
+            metrics.mixingScore || 0,
+            metrics.creativity || 0,
+            metrics.arrangement || 0,
+          ];
+
+          // Calculate average of available metrics
+          const validScores = scoreFactors.filter((score) => score > 0);
+          if (validScores.length > 0) {
+            totalScore +=
+              validScores.reduce((a, b) => a + b) / validScores.length;
+          }
+
+          // Count NFTs
+          if (track.isNFTMinted) {
+            nftCount++;
+          }
+        });
+
+        // Set average score (rounded to 1 decimal place)
+        const avgScore =
+          querySnapshot.size > 0
+            ? Math.round((totalScore / querySnapshot.size) * 10) / 10
+            : null;
+        setAverageScore(avgScore);
+
+        // Set NFT count
+        setNftsCount(nftCount);
+      } catch (error) {
+        console.error("Error fetching track stats:", error);
+      }
+    };
+
+    fetchTrackStats();
+  }, [user?.uid]);
 
   return (
     <div className="relative min-h-screen mt-24">
@@ -34,19 +99,25 @@ export default function Dashboard() {
             {/* Tracks Analyzed */}
             <div className="bg-background-light p-6 rounded-2xl border border-primary/20 hover:border-primary/40 transition-all">
               <h3 className="text-gray-400 mb-2">Tracks Analyzed</h3>
-              <p className="text-4xl font-bold text-primary-light">0</p>
+              <p className="text-4xl font-bold text-primary-light">
+                {tracksCount}
+              </p>
             </div>
 
             {/* Average Score */}
             <div className="bg-background-light p-6 rounded-2xl border border-primary/20 hover:border-primary/40 transition-all">
               <h3 className="text-gray-400 mb-2">Average Score</h3>
-              <p className="text-4xl font-bold text-primary-light">N/A</p>
+              <p className="text-4xl font-bold text-primary-light">
+                {averageScore !== null ? averageScore : "N/A"}
+              </p>
             </div>
 
             {/* NFTs Earned */}
             <div className="bg-background-light p-6 rounded-2xl border border-primary/20 hover:border-primary/40 transition-all">
               <h3 className="text-gray-400 mb-2">NFTs Earned</h3>
-              <p className="text-4xl font-bold text-primary-light">0</p>
+              <p className="text-4xl font-bold text-primary-light">
+                {nftsCount}
+              </p>
             </div>
 
             {/* NFT Gallery Link */}

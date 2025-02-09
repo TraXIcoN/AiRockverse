@@ -15,10 +15,7 @@ export const DrummerStickFigure = () => (
         <line x1="100" y1="70" x2="100" y2="120" /> {/* Body */}
         <path d="M100 90 L70 110 L80 120" className="animate-bounce" />{" "}
         {/* Drumming arms */}
-        <path
-          d="M100 90 L130 110 L120 120"
-          className="animate-bounce delay-100"
-        />
+        <path d="M100 90 L130 110 L120 120" className="animate-bounce" />
         <line x1="100" y1="120" x2="80" y2="160" /> {/* Legs */}
         <line x1="100" y1="120" x2="120" y2="160" />
         <rect x="60" y="120" width="80" height="20" rx="5" /> {/* Drum */}

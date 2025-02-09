@@ -18,58 +18,60 @@ export async function mintNFT(
   }
 ) {
   try {
-    // Use existing uploadToPinata function
-    const audioUrl = await uploadToPinata(audioFile);
+    if (!window.ethereum) {
+      throw new Error("Please install MetaMask or another Web3 wallet");
+    }
 
-    // Create metadata with audio URL
-    const nftMetadata = {
-      name: metadata.name,
-      description: metadata.description,
-      audioUrl: audioUrl,
-      properties: metadata.properties,
-    };
-
-    // Upload metadata to IPFS using the same function
-    const metadataUrl = await uploadToPinata(
-      new Blob([JSON.stringify(nftMetadata)], { type: "application/json" })
-    );
-
-    // Mint NFT
     const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
-    const contract = new ethers.Contract(
+
+    const nftContract = new ethers.Contract(
       process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!,
       contractABI,
       signer
     );
 
-    const tx = await contract.mintNFT(metadataUrl);
-    const receipt = await tx.wait();
+    // Upload audio file to IPFS
+    const audioIpfsHash = await uploadToPinata(audioFile);
 
-    // Get the token ID from the event
-    const event = receipt.logs.find((log: any) => log.eventName === "Transfer");
-    const tokenId = event.args[2].toString();
-
-    // List in marketplace
-    await listNFTOnMarketplace({
-      tokenId,
+    // Create metadata
+    const tokenMetadata = {
       name: metadata.name,
       description: metadata.description,
-      audioUrl,
-      owner: await signer.getAddress(),
-      price: "0", // Initial price set to 0
-      currency: "ETH",
-      properties: metadata.properties,
+      image: `ipfs://${audioIpfsHash}`,
+      animation_url: `ipfs://${audioIpfsHash}`,
+      properties: {
+        ...metadata.properties,
+        audioUrl: `ipfs://${audioIpfsHash}`,
+      },
+    };
+
+    // Create metadata file
+    const metadataStr = JSON.stringify(tokenMetadata);
+    const metadataFile = new File([metadataStr], "metadata.json", {
+      type: "application/json",
+      lastModified: Date.now(),
     });
+
+    // Upload metadata to IPFS
+    const metadataIpfsHash = await uploadToPinata(metadataFile);
+
+    // Mint NFT
+    const mintTx = await nftContract.safeMint(
+      await signer.getAddress(),
+      `ipfs://${metadataIpfsHash}`
+    );
+
+    // Wait for transaction to be mined
+    const receipt = await mintTx.wait();
 
     return {
       success: true,
-      tokenId,
-      audioUrl,
-      metadataUrl,
+      transactionHash: receipt.hash,
+      tokenMetadata: tokenMetadata,
     };
   } catch (error) {
-    console.error("Error minting NFT:", error);
+    console.error("Error in mintNFT:", error);
     throw error;
   }
 }

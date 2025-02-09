@@ -13,6 +13,7 @@ import {
 } from "@/components/illustrations/StickFigures";
 import DancingMinions from "@/components/DancingMinions";
 import { motion } from "framer-motion";
+import ForestBackground from "@/components/ForestBackground";
 
 export default function Home() {
   const { user, loading, userData, signInWithGoogle } = useAuth();
@@ -71,7 +72,7 @@ export default function Home() {
               className="inline-block"
             >
               <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary-light to-primary bg-clip-text text-transparent">
-                GrooveBot
+                GrooveChain
               </h1>
             </motion.div>
             <p className="text-2xl md:text-3xl text-gray-300 mb-8">
@@ -91,8 +92,9 @@ export default function Home() {
         </section>
 
         {/* Problem Section */}
-        <section className="py-20 px-4 bg-background-light">
-          <div className="max-w-6xl mx-auto">
+        <section className="py-20 px-4 bg-background-light relative">
+          <ForestBackground />
+          <div className="max-w-6xl mx-auto relative z-10">
             <h2 className="text-3xl md:text-4xl font-bold text-primary mb-12 text-center">
               Why Most DJs & Producers Struggle
             </h2>
@@ -132,7 +134,7 @@ export default function Home() {
         <section className="py-20 px-4">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-3xl md:text-4xl font-bold text-primary mb-12 text-center">
-              How GrooveBot Works
+              How GrooveChain Works
             </h2>
             <div className="grid md:grid-cols-4 gap-8">
               {[
@@ -186,7 +188,7 @@ export default function Home() {
               Ready to Level Up Your Music?
             </h2>
             <p className="text-lg text-gray-400 mb-8">
-              Join GrooveBot today and start getting personalized feedback on
+              Join GrooveChain today and start getting personalized feedback on
               your tracks
             </p>
             <Link
