@@ -21,7 +21,7 @@ export default function Navbar() {
                   href="/"
                   className="text-2xl font-bold bg-gradient-to-r from-primary-light to-primary bg-clip-text text-transparent"
                 >
-                  AI Rockverse
+                  GrooveBot
                 </Link>
               </div>
 

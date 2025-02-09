@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect } from "react";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { motion } from "framer-motion";
@@ -12,40 +12,95 @@ interface BattleRoyaleProps {
 }
 
 export default function BattleRoyale({ params }: BattleRoyaleProps) {
-  const songId = use(Promise.resolve(params.songId)); // Properly unwrap the params
   const [loading, setLoading] = useState(true);
   const [lyrics, setLyrics] = useState<string>("");
-  const [aiAudio, setAiAudio] = useState<string | null>(null); // Changed to null
-  const [humanAudio, setHumanAudio] = useState<string | null>(null); // Changed to null
+  const [aiAudio, setAiAudio] = useState<string | null>(null);
+  const [humanAudio, setHumanAudio] = useState<string | null>(null);
   const [votes, setVotes] = useState({ ai: 0, human: 0 });
 
   useEffect(() => {
-    const fetchBattleData = async () => {
+    if (!params?.songId) return;
+
+    const generateAndFetchAudio = async () => {
       try {
-        const docRef = doc(db, "lyrics", songId);
+        const docRef = doc(db, "lyrics", params.songId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
           setLyrics(data.rawLyrics || "");
 
-          // Fetch the AI audio using the clip_ids
-          if (data.clipIds?.[0]) {
-            const clipId = data.clipIds[0];
-            const audioResponse = await fetch(
-              `https://api.aimlapi.com/v2/audio/suno-ai/clip/${clipId}`,
+          try {
+            // Step 1: Generate audio using the correct endpoint
+            const generateResponse = await fetch(
+              "https://api.aimlapi.com/v2/generate/audio",
               {
+                method: "POST",
                 headers: {
                   Authorization: `Bearer ${process.env.NEXT_PUBLIC_AIML_API_KEY}`,
+                  "Content-Type": "application/json",
                 },
+                body: JSON.stringify({
+                  model: "stable-audio",
+                  prompt: `${data.genre || "ambient"} music with ${
+                    data.mood || "calm"
+                  } mood, ${data.theme || "melodic"} theme`,
+                  seconds_total: 30,
+                  steps: 100,
+                }),
               }
             );
 
-            if (audioResponse.ok) {
-              const audioBlob = await audioResponse.blob();
-              const audioUrl = URL.createObjectURL(audioBlob);
-              setAiAudio(audioUrl);
+            if (!generateResponse.ok) {
+              const errorData = await generateResponse.json();
+              console.error("Stable Audio Generation Error:", errorData);
+              throw new Error(`Generation error: ${generateResponse.status}`);
             }
+
+            const { generation_id } = await generateResponse.json();
+            console.log("Generation started with ID:", generation_id);
+
+            // Step 2: Poll for completion
+            let audioUrl = null;
+            let attempts = 0;
+            const maxAttempts = 30;
+
+            while (!audioUrl && attempts < maxAttempts) {
+              const statusResponse = await fetch(
+                `https://api.aimlapi.com/v2/audio/${generation_id}`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${process.env.NEXT_PUBLIC_AIML_API_KEY}`,
+                  },
+                }
+              );
+
+              if (statusResponse.ok) {
+                const audioData = await statusResponse.json();
+                console.log("Status check:", audioData);
+
+                if (audioData.status === "completed") {
+                  audioUrl = audioData.audio_url;
+                  break;
+                }
+              }
+
+              attempts++;
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+
+            if (audioUrl) {
+              setAiAudio(audioUrl);
+              await updateDoc(docRef, {
+                aiAudioUrl: audioUrl,
+                generationId: generation_id,
+                updatedAt: new Date().toISOString(),
+              });
+            } else {
+              throw new Error("Audio generation timed out");
+            }
+          } catch (apiError) {
+            console.error("Error generating audio:", apiError);
           }
         }
       } catch (error) {
@@ -55,19 +110,16 @@ export default function BattleRoyale({ params }: BattleRoyaleProps) {
       }
     };
 
-    fetchBattleData();
+    generateAndFetchAudio();
 
-    // Cleanup function to revoke object URLs
-    return () => {
-      if (aiAudio) {
-        URL.revokeObjectURL(aiAudio);
-      }
-    };
-  }, [songId]); // Updated dependency
+    // No need for URL.revokeObjectURL cleanup since we're using direct URLs now
+  }, [params?.songId]);
 
   const handleVote = async (type: "ai" | "human") => {
+    if (!params?.songId) return;
+
     try {
-      const docRef = doc(db, "lyrics", songId);
+      const docRef = doc(db, "lyrics", params.songId);
       const newVotes = {
         ...votes,
         [type]: votes[type] + 1,
@@ -131,6 +183,7 @@ export default function BattleRoyale({ params }: BattleRoyaleProps) {
             {aiAudio && (
               <audio controls className="w-full">
                 <source src={aiAudio} type="audio/mpeg" />
+                Your browser does not support the audio element.
               </audio>
             )}
           </div>

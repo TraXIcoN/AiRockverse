@@ -135,9 +135,9 @@ export default function LyricAssistant({
       const timedLyrics = parseTimedLyrics(lines);
       setLyrics(timedLyrics);
 
-      // Generate audio with Suno API
-      const sunoResponse = await fetch(
-        "https://api.aimlapi.com/v2/generate/audio/suno-ai/clip",
+      // Generate audio with Stable Audio API
+      const generateResponse = await fetch(
+        "https://api.aimlapi.com/v2/generate/audio",
         {
           method: "POST",
           headers: {
@@ -145,14 +145,19 @@ export default function LyricAssistant({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            prompt: generatedText,
-            tags: `${genre} ${selectedMood.toLowerCase()}`,
-            title: theme,
+            model: "stable-audio",
+            prompt: `${genre} music with ${selectedMood.toLowerCase()} mood, ${theme} theme`,
+            seconds_total: 30,
+            steps: 100,
           }),
         }
       );
 
-      const { clip_ids } = await sunoResponse.json();
+      if (!generateResponse.ok) {
+        throw new Error(`Failed to generate audio: ${generateResponse.status}`);
+      }
+
+      const { generation_id } = await generateResponse.json();
 
       // Save everything to Firebase
       if (songId) {
@@ -162,7 +167,7 @@ export default function LyricAssistant({
           {
             generatedLyrics: timedLyrics,
             rawLyrics: generatedText,
-            clipIds: clip_ids,
+            generationId: generation_id,
             theme,
             keywords,
             storyDescription,

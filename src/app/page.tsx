@@ -32,7 +32,7 @@ export default function Home() {
         <section className="relative h-screen flex items-center justify-center px-4">
           <div className="max-w-6xl mx-auto text-center">
             <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary-light to-primary bg-clip-text text-transparent">
-              AI Rockverse
+              GrooveBot
             </h1>
             <p className="text-2xl md:text-3xl text-gray-300 mb-8">
               The Smartest DJ & Music Producer Coach
@@ -92,7 +92,7 @@ export default function Home() {
         <section className="py-20 px-4">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-3xl md:text-4xl font-bold text-primary mb-12 text-center">
-              How AI Rockverse Works
+              How GrooveBot Works
             </h2>
             <div className="grid md:grid-cols-4 gap-8">
               {[
@@ -146,7 +146,7 @@ export default function Home() {
               Ready to Level Up Your Music?
             </h2>
             <p className="text-lg text-gray-400 mb-8">
-              Join AI Rockverse today and start getting personalized feedback on
+              Join GrooveBot today and start getting personalized feedback on
               your tracks
             </p>
             <Link
